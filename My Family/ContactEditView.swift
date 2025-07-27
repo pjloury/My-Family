@@ -180,6 +180,7 @@ struct ContactEditView: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
     
     private func calculateAge() -> Int {

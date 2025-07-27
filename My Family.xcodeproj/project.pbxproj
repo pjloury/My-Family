@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		60C04B3D2E35DB38004D60F3 /* My Family.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "My Family.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		60C04B3D2E35DB38004D60F3 /* Fam List.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Fam List.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -40,7 +40,7 @@
 		60C04B3E2E35DB38004D60F3 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				60C04B3D2E35DB38004D60F3 /* My Family.app */,
+				60C04B3D2E35DB38004D60F3 /* Fam List.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		60C04B3C2E35DB38004D60F3 /* My Family */ = {
+		60C04B3C2E35DB38004D60F3 /* Fam List */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 60C04B4B2E35DB3A004D60F3 /* Build configuration list for PBXNativeTarget "My Family" */;
+			buildConfigurationList = 60C04B4B2E35DB3A004D60F3 /* Build configuration list for PBXNativeTarget "Fam List" */;
 			buildPhases = (
 				60C04B392E35DB38004D60F3 /* Sources */,
 				60C04B3A2E35DB38004D60F3 /* Frameworks */,
@@ -63,11 +63,11 @@
 			fileSystemSynchronizedGroups = (
 				60C04B3F2E35DB38004D60F3 /* My Family */,
 			);
-			name = "My Family";
+			name = "Fam List";
 			packageProductDependencies = (
 			);
 			productName = "My Family";
-			productReference = 60C04B3D2E35DB38004D60F3 /* My Family.app */;
+			productReference = 60C04B3D2E35DB38004D60F3 /* Fam List.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				60C04B3C2E35DB38004D60F3 /* My Family */,
+				60C04B3C2E35DB38004D60F3 /* Fam List */,
 			);
 		};
 /* End PBXProject section */
@@ -250,12 +250,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"My Family/Preview Content\"";
 				DEVELOPMENT_TEAM = D2GRT69L42;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "My Family";
+				INFOPLIST_KEY_CFBundleDisplayName = "Fam List";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSContactsUsageDescription = "This app needs access to your contacts to add family members with birthdays to your family list.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -282,12 +282,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_ASSET_PATHS = "\"My Family/Preview Content\"";
 				DEVELOPMENT_TEAM = D2GRT69L42;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "My Family";
+				INFOPLIST_KEY_CFBundleDisplayName = "Fam List";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSContactsUsageDescription = "This app needs access to your contacts to add family members with birthdays to your family list.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -320,7 +320,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		60C04B4B2E35DB3A004D60F3 /* Build configuration list for PBXNativeTarget "My Family" */ = {
+		60C04B4B2E35DB3A004D60F3 /* Build configuration list for PBXNativeTarget "Fam List" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				60C04B4C2E35DB3A004D60F3 /* Debug */,

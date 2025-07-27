@@ -170,6 +170,7 @@ struct ContentView: View {
                 .animation(.easeInOut(duration: 0.3), value: isEditingTitle)
             )
         }
+        .navigationViewStyle(.stack)
         .onAppear {
             contactManager.sortContacts()
         }
@@ -193,8 +194,6 @@ struct ContactListView: View {
         if let currentList = contactManager.currentList {
             if currentList.contacts.isEmpty {
                 VStack(spacing: 20) {
-                    Spacer()
-                    
                     Image(systemName: "person.3")
                         .font(.system(size: 80))
                         .foregroundStyle(
@@ -215,9 +214,9 @@ struct ContactListView: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
-                    
-                    Spacer()
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
             } else {
                 List {
                     ForEach(currentList.contacts) { contact in

@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "60C04B3C2E35DB38004D60F3"
-               BuildableName = "My Family.app"
-               BlueprintName = "My Family"
+               BuildableName = "Fam List.app"
+               BlueprintName = "Fam List"
                ReferencedContainer = "container:My Family.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -48,8 +48,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "60C04B3C2E35DB38004D60F3"
-            BuildableName = "My Family.app"
-            BlueprintName = "My Family"
+            BuildableName = "Fam List.app"
+            BlueprintName = "Fam List"
             ReferencedContainer = "container:My Family.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -65,8 +65,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "60C04B3C2E35DB38004D60F3"
-            BuildableName = "My Family.app"
-            BlueprintName = "My Family"
+            BuildableName = "Fam List.app"
+            BlueprintName = "Fam List"
             ReferencedContainer = "container:My Family.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

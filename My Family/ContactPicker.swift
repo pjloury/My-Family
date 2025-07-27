@@ -172,6 +172,7 @@ struct ContactPicker: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
     
     private func loadContacts() async {

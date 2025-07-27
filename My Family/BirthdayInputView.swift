@@ -141,6 +141,7 @@ struct BirthdayInputView: View {
                 DatePickerView(selectedDate: $selectedDate)
             }
         }
+        .navigationViewStyle(.stack)
     }
 }
 
@@ -179,5 +180,6 @@ struct DatePickerView: View {
                 }
             }
         }
+        .navigationViewStyle(.stack)
     }
 } 
