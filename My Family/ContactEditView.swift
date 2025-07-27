@@ -289,8 +289,9 @@ struct ContactEditView: View {
     }
     
     private func saveContact() {
-        // Find the contact in the array and update it
-        if let index = contactManager.contacts.firstIndex(where: { $0.id == contact.id }) {
+        // Find the contact in the current list and update it
+        if let currentList = contactManager.currentList,
+           let index = currentList.contacts.firstIndex(where: { $0.id == contact.id }) {
             var newPhotoFileName: String? = nil
             
             // Handle photo changes
@@ -315,9 +316,10 @@ struct ContactEditView: View {
                 photoFileName: newPhotoFileName
             )
             
-            contactManager.contacts[index] = updatedContact
+            // Update the contact in the current list
+            contactManager.contactLists[contactManager.selectedListIndex].contacts[index] = updatedContact
             contactManager.sortContacts()
-            contactManager.saveContacts()
+            contactManager.saveContactLists()
         }
     }
 }

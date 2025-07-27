@@ -4,12 +4,13 @@ import Contacts
 import UIKit
 
 class ContactManager: ObservableObject {
-    @Published var contacts: [Contact] = []
-    @Published var selectedSortOption: SortOption = .name
-    @Published var sortDirection: SortDirection = .ascending
+    @Published var contactLists: [ContactList] = []
+    @Published var selectedListIndex: Int = 0
     
-    private let userDefaults = UserDefaults.standard
-    private let contactsKey = "SavedContacts"
+    // Feature flag to toggle between flat UI colors and stock iOS colors
+    static let useFlatUIColors = false
+    
+    private let contactStore = CNContactStore()
     private let fileManager = FileManager.default
     
     // Directory for storing contact photos
@@ -18,9 +19,26 @@ class ContactManager: ObservableObject {
         return documentsPath.appendingPathComponent("ContactPhotos")
     }
     
+    private let contactListsKey = "SavedContactLists"
+    private let selectedListIndexKey = "SelectedListIndex"
+    
+    private let userDefaults = UserDefaults.standard
+    
+    var currentList: ContactList? {
+        guard selectedListIndex < contactLists.count else { return nil }
+        return contactLists[selectedListIndex]
+    }
+    
     init() {
         createPhotosDirectoryIfNeeded()
-        loadContacts()
+        loadContactLists()
+        
+        // Create default "My Family" list if no lists exist
+        if contactLists.isEmpty {
+            let defaultList = ContactList(title: "My Family")
+            contactLists.append(defaultList)
+            saveContactLists()
+        }
     }
     
     private func createPhotosDirectoryIfNeeded() {
@@ -53,9 +71,9 @@ class ContactManager: ObservableObject {
     }
     
     func addContact(_ contact: Contact) {
-        contacts.append(contact)
-        sortContacts()
-        saveContacts()
+        guard selectedListIndex < contactLists.count else { return }
+        contactLists[selectedListIndex].addContact(contact)
+        saveContactLists()
     }
     
     func createContact(from cnContact: CNContact, birthday: Date) -> Contact {
@@ -100,95 +118,135 @@ class ContactManager: ObservableObject {
     }
     
     func deleteContact(at offsets: IndexSet) {
+        guard selectedListIndex < contactLists.count else { return }
+        
         // Delete associated photos before removing contacts
         for index in offsets {
-            let contact = contacts[index]
+            let contact = contactLists[selectedListIndex].contacts[index]
             if let photoFileName = contact.photoFileName {
                 deletePhotoFromFileSystem(fileName: photoFileName)
             }
         }
         
-        contacts.remove(atOffsets: offsets)
-        saveContacts()
+        contactLists[selectedListIndex].deleteContact(at: offsets)
+        saveContactLists()
     }
     
     func sortContacts() {
-        // Use a more efficient sorting approach
-        contacts.sort { first, second in
-            let comparison: ComparisonResult
-            
-            switch selectedSortOption {
-            case .name:
-                comparison = first.firstName.localizedCaseInsensitiveCompare(second.firstName)
-            case .age:
-                if first.age < second.age {
-                    comparison = .orderedAscending
-                } else if first.age > second.age {
-                    comparison = .orderedDescending
-                } else {
-                    comparison = .orderedSame
-                }
-            case .birthday:
-                // Sort by calendar order (month and day only, ignoring year)
-                let calendar = Calendar.current
-                let firstMonth = calendar.component(.month, from: first.birthday)
-                let firstDay = calendar.component(.day, from: first.birthday)
-                let secondMonth = calendar.component(.month, from: second.birthday)
-                let secondDay = calendar.component(.day, from: second.birthday)
-                
-                // First compare by month
-                if firstMonth != secondMonth {
-                    if firstMonth < secondMonth {
-                        comparison = .orderedAscending
-                    } else {
-                        comparison = .orderedDescending
-                    }
-                } else {
-                    // If same month, compare by day
-                    if firstDay < secondDay {
-                        comparison = .orderedAscending
-                    } else if firstDay > secondDay {
-                        comparison = .orderedDescending
-                    } else {
-                        comparison = .orderedSame
-                    }
-                }
-            case .daysUntilBirthday:
-                if first.daysUntilNextBirthday < second.daysUntilNextBirthday {
-                    comparison = .orderedAscending
-                } else if first.daysUntilNextBirthday > second.daysUntilNextBirthday {
-                    comparison = .orderedDescending
-                } else {
-                    comparison = .orderedSame
-                }
-            }
-            
-            // Apply sort direction
-            switch sortDirection {
-            case .ascending:
-                return comparison == .orderedAscending
-            case .descending:
-                return comparison == .orderedDescending
-            }
-        }
+        guard selectedListIndex < contactLists.count else { return }
+        contactLists[selectedListIndex].sortContacts()
+        saveContactLists()
     }
     
     func toggleSortDirection() {
-        sortDirection = sortDirection.next
-        sortContacts()
+        guard selectedListIndex < contactLists.count else { return }
+        contactLists[selectedListIndex].toggleSortDirection()
+        saveContactLists()
     }
     
-    func saveContacts() {
-        if let encoded = try? JSONEncoder().encode(contacts) {
-            userDefaults.set(encoded, forKey: contactsKey)
+    func updateSortOption(_ option: SortOption) {
+        guard selectedListIndex < contactLists.count else { return }
+        contactLists[selectedListIndex].selectedSortOption = option
+        contactLists[selectedListIndex].sortContacts()
+        saveContactLists()
+    }
+    
+    func addNewList(title: String) {
+        let newList = ContactList(title: title)
+        contactLists.append(newList)
+        selectedListIndex = contactLists.count - 1
+        saveContactLists()
+    }
+    
+    func deleteList(at index: Int) {
+        guard index < contactLists.count else { return }
+        
+        // Delete associated photos for all contacts in the list
+        for contact in contactLists[index].contacts {
+            if let photoFileName = contact.photoFileName {
+                deletePhotoFromFileSystem(fileName: photoFileName)
+            }
+        }
+        
+        contactLists.remove(at: index)
+        
+        // Adjust selected index if necessary
+        if selectedListIndex >= contactLists.count {
+            selectedListIndex = max(0, contactLists.count - 1)
+        }
+        
+        saveContactLists()
+    }
+    
+    func updateCurrentListTitle(_ newTitle: String) {
+        guard selectedListIndex < contactLists.count else { return }
+        contactLists[selectedListIndex].title = newTitle
+        saveContactLists()
+    }
+    
+    func getCurrentListColors() -> (primary: Color, secondary: Color) {
+        if ContactManager.useFlatUIColors {
+            // Flat UI colors
+            let colors: [Color] = [
+                Color(red: 0.925, green: 0.235, blue: 0.235), // Flat Red
+                Color(red: 0.925, green: 0.431, blue: 0.235), // Flat Orange
+                Color(red: 0.925, green: 0.627, blue: 0.235), // Flat Yellow
+                Color(red: 0.235, green: 0.925, blue: 0.235), // Flat Green
+                Color(red: 0.235, green: 0.627, blue: 0.925), // Flat Blue
+                Color(red: 0.627, green: 0.235, blue: 0.925), // Flat Purple
+            ]
+            
+            let primaryColor = colors[selectedListIndex % colors.count]
+            let secondaryColor = primaryColor.opacity(0.3)
+            return (primary: primaryColor, secondary: secondaryColor)
+        } else {
+            // Stock iOS colors - return clear to use defaults
+            return (primary: Color.clear, secondary: Color.clear)
         }
     }
     
-    private func loadContacts() {
-        if let data = userDefaults.data(forKey: contactsKey),
-           let decoded = try? JSONDecoder().decode([Contact].self, from: data) {
-            contacts = decoded
-            sortContacts()
+    func deleteCurrentList() {
+        guard selectedListIndex < contactLists.count else { return }
+        
+        // Delete associated photos
+        for contact in contactLists[selectedListIndex].contacts {
+            if let photoFileName = contact.photoFileName {
+                deletePhotoFromFileSystem(fileName: photoFileName)
+            }
+        }
+        
+        // Remove the list
+        contactLists.remove(at: selectedListIndex)
+        
+        // Adjust selected index if necessary
+        if contactLists.isEmpty {
+            // Create a default list if all lists are deleted
+            let defaultList = ContactList(title: "My Family")
+            contactLists.append(defaultList)
+            selectedListIndex = 0
+        } else if selectedListIndex >= contactLists.count {
+            selectedListIndex = contactLists.count - 1
+        }
+        
+        saveContactLists()
+    }
+    
+    func saveContactLists() {
+        if let encoded = try? JSONEncoder().encode(contactLists) {
+            userDefaults.set(encoded, forKey: contactListsKey)
+        }
+        userDefaults.set(selectedListIndex, forKey: selectedListIndexKey)
+    }
+    
+    private func loadContactLists() {
+        if let data = userDefaults.data(forKey: contactListsKey),
+           let decoded = try? JSONDecoder().decode([ContactList].self, from: data) {
+            contactLists = decoded
+        }
+        
+        selectedListIndex = userDefaults.integer(forKey: selectedListIndexKey)
+        if selectedListIndex >= contactLists.count {
+            selectedListIndex = 0
         }
     }
     

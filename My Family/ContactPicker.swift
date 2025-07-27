@@ -343,19 +343,19 @@ struct ContactPicker: View {
         let nickname = contact.nickname.isEmpty ? nil : contact.nickname
         
         // Use Set for faster lookups if we have many contacts
-        let existingContacts = Set(contactManager.contacts.map { $0.name })
+        let existingContacts = Set(contactManager.currentList?.contacts.map { $0.name } ?? [])
         
         // Quick check for full name match
         if existingContacts.contains(fullName) {
             // If there's a nickname, do a more detailed check
             if let nickname = nickname {
-                return contactManager.contacts.contains { existingContact in
+                return contactManager.currentList?.contacts.contains { existingContact in
                     existingContact.name == fullName && existingContact.nickname == nickname
-                }
+                } ?? false
             } else {
-                return contactManager.contacts.contains { existingContact in
+                return contactManager.currentList?.contacts.contains { existingContact in
                     existingContact.name == fullName && existingContact.nickname == nil
-                }
+                } ?? false
             }
         }
         

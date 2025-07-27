@@ -316,16 +316,16 @@ enum SortOption: String, CaseIterable {
     case name = "Name"
     case age = "Age"
     case birthday = "Birthday"
-    case daysUntilBirthday = "Days Until Birthday"
+    case daysUntilBirthday = "Upcmoing Birthday"
     
     var displayName: String {
         return self.rawValue
     }
 }
 
-enum SortDirection {
-    case ascending
-    case descending
+enum SortDirection: String {
+    case ascending = "ascending"
+    case descending = "descending"
     
     var arrow: String {
         switch self {
