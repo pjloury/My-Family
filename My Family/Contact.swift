@@ -1,8 +1,9 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 struct Contact: Identifiable, Codable {
-    let id = UUID()
+    var id = UUID()
     let name: String
     let firstName: String
     let nickname: String?
@@ -243,6 +244,72 @@ struct Contact: Identifiable, Codable {
             return "🐀" // Rat (fallback)
         }
     }
+    
+    var gradeLevelEmoji: String? {
+        // Only show for K-12 age children (typically 5-18 years old)
+        if age < 5 || age > 18 {
+            return nil
+        }
+        
+        let calendar = Calendar.current
+        let now = Date()
+        let currentYear = calendar.component(.year, from: now)
+        let currentMonth = calendar.component(.month, from: now)
+        
+        // Typical school year starts in August/September
+        // Students born before September 1st are in the grade for their age
+        // Students born after September 1st are in the grade below their age
+        
+        let birthMonth = calendar.component(.month, from: birthday)
+        let birthDay = calendar.component(.day, from: birthday)
+        
+        // Calculate grade based on age and birthday cutoff
+        var grade = age - 5 // Start with basic grade calculation
+        
+        // Adjust for birthday cutoff (September 1st)
+        if birthMonth > 9 || (birthMonth == 9 && birthDay > 1) {
+            grade -= 1
+        }
+        
+        // Ensure grade is within K-12 range
+        if grade < 0 {
+            grade = 0 // Kindergarten
+        } else if grade > 12 {
+            grade = 12 // 12th grade
+        }
+        
+        // Return appropriate emoji
+        switch grade {
+        case 0:
+            return "🎒" // Kindergarten
+        case 1:
+            return "1️⃣"
+        case 2:
+            return "2️⃣"
+        case 3:
+            return "3️⃣"
+        case 4:
+            return "4️⃣"
+        case 5:
+            return "5️⃣"
+        case 6:
+            return "6️⃣"
+        case 7:
+            return "7️⃣"
+        case 8:
+            return "8️⃣"
+        case 9:
+            return "9️⃣"
+        case 10:
+            return "🔟"
+        case 11:
+            return "1️⃣1️⃣"
+        case 12:
+            return "1️⃣2️⃣"
+        default:
+            return nil
+        }
+    }
 }
 
 enum SortOption: String, CaseIterable {
@@ -253,5 +320,28 @@ enum SortOption: String, CaseIterable {
     
     var displayName: String {
         return self.rawValue
+    }
+}
+
+enum SortDirection {
+    case ascending
+    case descending
+    
+    var arrow: String {
+        switch self {
+        case .ascending:
+            return "⬆️"
+        case .descending:
+            return "⬇️"
+        }
+    }
+    
+    var next: SortDirection {
+        switch self {
+        case .ascending:
+            return .descending
+        case .descending:
+            return .ascending
+        }
     }
 } 

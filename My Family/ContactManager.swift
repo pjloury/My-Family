@@ -1,10 +1,12 @@
 import Foundation
 import SwiftUI
 import Contacts
+import UIKit
 
 class ContactManager: ObservableObject {
     @Published var contacts: [Contact] = []
     @Published var selectedSortOption: SortOption = .name
+    @Published var sortDirection: SortDirection = .ascending
     
     private let userDefaults = UserDefaults.standard
     private let contactsKey = "SavedContacts"
@@ -113,11 +115,19 @@ class ContactManager: ObservableObject {
     func sortContacts() {
         // Use a more efficient sorting approach
         contacts.sort { first, second in
+            let comparison: ComparisonResult
+            
             switch selectedSortOption {
             case .name:
-                return first.firstName.localizedCaseInsensitiveCompare(second.firstName) == .orderedAscending
+                comparison = first.firstName.localizedCaseInsensitiveCompare(second.firstName)
             case .age:
-                return first.age > second.age
+                if first.age < second.age {
+                    comparison = .orderedAscending
+                } else if first.age > second.age {
+                    comparison = .orderedDescending
+                } else {
+                    comparison = .orderedSame
+                }
             case .birthday:
                 // Sort by calendar order (month and day only, ignoring year)
                 let calendar = Calendar.current
@@ -128,14 +138,44 @@ class ContactManager: ObservableObject {
                 
                 // First compare by month
                 if firstMonth != secondMonth {
-                    return firstMonth < secondMonth
+                    if firstMonth < secondMonth {
+                        comparison = .orderedAscending
+                    } else {
+                        comparison = .orderedDescending
+                    }
+                } else {
+                    // If same month, compare by day
+                    if firstDay < secondDay {
+                        comparison = .orderedAscending
+                    } else if firstDay > secondDay {
+                        comparison = .orderedDescending
+                    } else {
+                        comparison = .orderedSame
+                    }
                 }
-                // If same month, compare by day
-                return firstDay < secondDay
             case .daysUntilBirthday:
-                return first.daysUntilNextBirthday < second.daysUntilNextBirthday
+                if first.daysUntilNextBirthday < second.daysUntilNextBirthday {
+                    comparison = .orderedAscending
+                } else if first.daysUntilNextBirthday > second.daysUntilNextBirthday {
+                    comparison = .orderedDescending
+                } else {
+                    comparison = .orderedSame
+                }
+            }
+            
+            // Apply sort direction
+            switch sortDirection {
+            case .ascending:
+                return comparison == .orderedAscending
+            case .descending:
+                return comparison == .orderedDescending
             }
         }
+    }
+    
+    func toggleSortDirection() {
+        sortDirection = sortDirection.next
+        sortContacts()
     }
     
     func saveContacts() {

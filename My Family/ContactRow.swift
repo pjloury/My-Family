@@ -40,6 +40,12 @@ struct ContactRow: View {
                         Text(contact.chineseZodiacAnimal)
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        
+                        if let gradeEmoji = contact.gradeLevelEmoji {
+                            Text(gradeEmoji)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 

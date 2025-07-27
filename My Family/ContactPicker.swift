@@ -1,5 +1,6 @@
 import SwiftUI
 import Contacts
+import UIKit
 
 struct ContactPicker: View {
     @ObservedObject var contactManager: ContactManager

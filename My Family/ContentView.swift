@@ -58,6 +58,17 @@ struct ContentView: View {
                     }
                     
                     Spacer()
+                    
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            contactManager.toggleSortDirection()
+                        }
+                    }) {
+                        Text(contactManager.sortDirection.arrow)
+                            .font(.title2)
+                            .fontWeight(.medium)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.horizontal)
                 .padding(.vertical, 8)

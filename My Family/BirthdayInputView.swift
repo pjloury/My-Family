@@ -1,5 +1,6 @@
 import SwiftUI
 import Contacts
+import UIKit
 
 struct BirthdayInputView: View {
     let contact: CNContact
