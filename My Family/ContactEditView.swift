@@ -1,6 +1,7 @@
 import SwiftUI
 import PhotosUI
 import UIKit
+import Contacts // Added for CNContactStore
 
 struct ContactEditView: View {
     @Environment(\.dismiss) private var dismiss
@@ -164,10 +165,17 @@ struct ContactEditView: View {
                 }
             }
             .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedPhoto, matching: .images)
-            .onChange(of: selectedPhoto) { newItem in
-                Task {
-                    if let data = try? await newItem?.loadTransferable(type: Data.self) {
-                        editedPhotoData = data
+            .onChange(of: selectedPhoto) { _ in
+                if let selectedPhoto = selectedPhoto {
+                    selectedPhoto.loadTransferable(type: Data.self) { result in
+                        switch result {
+                        case .success(let data):
+                            if let data = data {
+                                editedPhotoData = data
+                            }
+                        case .failure(let error):
+                            print("Failed to load photo: \(error)")
+                        }
                     }
                 }
             }
@@ -289,37 +297,72 @@ struct ContactEditView: View {
     }
     
     private func saveContact() {
-        // Find the contact in the current list and update it
-        if let currentList = contactManager.currentList,
-           let index = currentList.contacts.firstIndex(where: { $0.id == contact.id }) {
-            var newPhotoFileName: String? = nil
+        // Update the contact in the contact manager
+        contactManager.updateContact(
+            contactId: contact.id,
+            name: editedName,
+            firstName: editedFirstName,
+            birthday: editedBirthday,
+            photoData: editedPhotoData
+        )
+        
+        // Save changes back to iOS Contacts
+        Task {
+            await saveToSystemContacts()
+        }
+    }
+
+    private func saveToSystemContacts() async {
+        let store = CNContactStore()
+        
+        do {
+            // Fetch the original contact from iOS Contacts
+            let predicate = CNContact.predicateForContacts(matchingName: contact.name)
+            let keysToFetch: [CNKeyDescriptor] = [
+                CNContactGivenNameKey as CNKeyDescriptor,
+                CNContactFamilyNameKey as CNKeyDescriptor,
+                CNContactBirthdayKey as CNKeyDescriptor,
+                CNContactImageDataKey as CNKeyDescriptor
+            ]
             
-            // Handle photo changes
-            if let newPhotoData = editedPhotoData {
-                // Save new photo to file system
-                newPhotoFileName = contactManager.savePhotoToFileSystem(newPhotoData, for: contact.id)
-                
-                // Delete old photo if it exists and is different
-                if let oldPhotoFileName = contact.photoFileName, oldPhotoFileName != newPhotoFileName {
-                    contactManager.deletePhotoFromFileSystem(fileName: oldPhotoFileName)
-                }
-            } else if contact.photoFileName != nil {
-                // Photo was removed, delete old photo
-                contactManager.deletePhotoFromFileSystem(fileName: contact.photoFileName!)
+            let contacts = try store.unifiedContacts(matching: predicate, keysToFetch: keysToFetch)
+            
+            guard let systemContact = contacts.first else {
+                print("Could not find contact in system")
+                return
             }
             
-            let updatedContact = Contact(
-                name: editedName.trimmingCharacters(in: .whitespacesAndNewlines),
-                firstName: editedFirstName.trimmingCharacters(in: .whitespacesAndNewlines),
-                nickname: contact.nickname,
-                birthday: editedBirthday,
-                photoFileName: newPhotoFileName
-            )
+            // Create a mutable copy
+            let mutableContact = systemContact.mutableCopy() as! CNMutableContact
             
-            // Update the contact in the current list
-            contactManager.contactLists[contactManager.selectedListIndex].contacts[index] = updatedContact
-            contactManager.sortContacts()
-            contactManager.saveContactLists()
+            // Update the fields
+            let nameParts = editedName.split(separator: " ", maxSplits: 1)
+            if nameParts.count >= 1 {
+                mutableContact.givenName = String(nameParts[0])
+            }
+            if nameParts.count >= 2 {
+                mutableContact.familyName = String(nameParts[1])
+            }
+            
+            // Update birthday
+            let calendar = Calendar.current
+            let components = calendar.dateComponents([.year, .month, .day], from: editedBirthday)
+            mutableContact.birthday = components
+            
+            // Update photo if changed
+            if let newPhotoData = editedPhotoData {
+                mutableContact.imageData = newPhotoData
+            }
+            
+            // Save to system
+            let saveRequest = CNSaveRequest()
+            saveRequest.update(mutableContact)
+            
+            try store.execute(saveRequest)
+            print("Successfully updated contact in system")
+            
+        } catch {
+            print("Failed to update system contact: \(error)")
         }
     }
 }

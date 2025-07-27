@@ -133,8 +133,42 @@ class ContactManager: ObservableObject {
     }
     
     func sortContacts() {
-        guard selectedListIndex < contactLists.count else { return }
-        contactLists[selectedListIndex].sortContacts()
+        guard let currentListIndex = contactLists.firstIndex(where: { $0.id == (currentList?.id ?? UUID()) }) else { return }
+        
+        contactLists[currentListIndex].contacts.sort { (first: Contact, second: Contact) in
+            let comparison: ComparisonResult
+            
+            switch contactLists[currentListIndex].selectedSortOption {
+            case .name:
+                comparison = first.firstName.localizedCaseInsensitiveCompare(second.firstName)
+            case .age:
+                comparison = first.age < second.age ? .orderedAscending : first.age > second.age ? .orderedDescending : .orderedSame
+            case .birthday:
+                let firstMonth = Calendar.current.component(.month, from: first.birthday)
+                let firstDay = Calendar.current.component(.day, from: first.birthday)
+                let secondMonth = Calendar.current.component(.month, from: second.birthday)
+                let secondDay = Calendar.current.component(.day, from: second.birthday)
+                
+                if firstMonth < secondMonth {
+                    comparison = .orderedAscending
+                } else if firstMonth > secondMonth {
+                    comparison = .orderedDescending
+                } else {
+                    comparison = firstDay < secondDay ? .orderedAscending : firstDay > secondDay ? .orderedDescending : .orderedSame
+                }
+            case .daysUntilBirthday:
+                comparison = first.daysUntilNextBirthday < second.daysUntilNextBirthday ? .orderedAscending : first.daysUntilNextBirthday > second.daysUntilNextBirthday ? .orderedDescending : .orderedSame
+            }
+            
+            // Apply sort direction
+            switch contactLists[currentListIndex].sortDirection {
+            case .ascending:
+                return comparison == .orderedAscending
+            case .descending:
+                return comparison == .orderedDescending
+            }
+        }
+        
         saveContactLists()
     }
     
@@ -319,5 +353,33 @@ class ContactManager: ObservableObject {
         }
         
         return fetchedContacts
+    }
+    
+    func updateContact(contactId: UUID, name: String, firstName: String, birthday: Date, photoData: Data?) {
+        guard let listIndex = contactLists.firstIndex(where: { $0.id == (currentList?.id ?? UUID()) }),
+              let contactIndex = contactLists[listIndex].contacts.firstIndex(where: { $0.id == contactId }) else {
+            return
+        }
+        
+        var updatedContact = contactLists[listIndex].contacts[contactIndex]
+        updatedContact.name = name
+        updatedContact.firstName = firstName
+        updatedContact.birthday = birthday
+        
+        // Handle photo changes
+        if let newPhotoData = photoData {
+            // Save new photo to file system
+            let photoFileName = savePhotoToFileSystem(newPhotoData, for: contactId)
+            
+            // Delete old photo if it exists
+            if let oldPhotoFileName = updatedContact.photoFileName {
+                deletePhotoFromFileSystem(fileName: oldPhotoFileName)
+            }
+            
+            updatedContact.photoFileName = photoFileName
+        }
+        
+        contactLists[listIndex].contacts[contactIndex] = updatedContact
+        saveContactLists()
     }
 } 

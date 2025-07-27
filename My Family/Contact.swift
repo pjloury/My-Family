@@ -4,11 +4,11 @@ import UIKit
 
 struct Contact: Identifiable, Codable {
     var id = UUID()
-    let name: String
-    let firstName: String
+    var name: String
+    var firstName: String
     let nickname: String?
-    let birthday: Date
-    let photoFileName: String?
+    var birthday: Date
+    var photoFileName: String?
     
     var displayName: String {
         return nickname ?? name
@@ -316,7 +316,7 @@ enum SortOption: String, CaseIterable {
     case name = "Name"
     case age = "Age"
     case birthday = "Birthday"
-    case daysUntilBirthday = "Upcmoing Birthday"
+    case daysUntilBirthday = "Upcoming Birthday"
     
     var displayName: String {
         return self.rawValue
