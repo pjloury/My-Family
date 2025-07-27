@@ -6,8 +6,30 @@ struct BirthdayInputView: View {
     let onBirthdaySelected: (Date) -> Void
     let onCancel: () -> Void
     
-    @State private var selectedDate = Date()
+    @State private var selectedDate: Date
     @State private var showingDatePicker = false
+    
+    init(contact: CNContact, onBirthdaySelected: @escaping (Date) -> Void, onCancel: @escaping () -> Void) {
+        self.contact = contact
+        self.onBirthdaySelected = onBirthdaySelected
+        self.onCancel = onCancel
+        
+        // Initialize with known birthday information
+        if let birthday = contact.birthday,
+           let month = birthday.month,
+           let day = birthday.day {
+            let calendar = Calendar.current
+            let currentYear = calendar.component(.year, from: Date())
+            
+            // Use the known month and day, with current year as default
+            // This provides a reasonable starting point that the user can adjust
+            let components = DateComponents(year: currentYear, month: month, day: day)
+            self._selectedDate = State(initialValue: calendar.date(from: components) ?? Date())
+        } else {
+            // Fallback to today's date if no birthday info is available
+            self._selectedDate = State(initialValue: Date())
+        }
+    }
     
     var body: some View {
         NavigationView {

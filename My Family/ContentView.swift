@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var isEditingTitle = false
     @State private var editingTitle = ""
     @FocusState private var isTitleFieldFocused: Bool
+    @State private var selectedContactForEdit: Contact?
     
     // Custom binding that selects all text when focused
     private var editingTitleBinding: Binding<String> {
@@ -87,8 +88,10 @@ struct ContentView: View {
                 } else {
                     List {
                         ForEach(contactManager.contacts) { contact in
-                            ContactRow(contact: contact)
-                                .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .scale.combined(with: .opacity)))
+                            ContactRow(contact: contact) {
+                                selectedContactForEdit = contact
+                            }
+                            .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .scale.combined(with: .opacity)))
                         }
                         .onDelete(perform: contactManager.deleteContact)
                     }
@@ -121,6 +124,9 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingContactPicker) {
                 ContactPicker(contactManager: contactManager)
+            }
+            .sheet(item: $selectedContactForEdit) { contact in
+                ContactEditView(contact: contact, contactManager: contactManager)
             }
             .overlay(
                 Group {

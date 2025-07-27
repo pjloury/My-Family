@@ -8,9 +8,46 @@ class ContactManager: ObservableObject {
     
     private let userDefaults = UserDefaults.standard
     private let contactsKey = "SavedContacts"
+    private let fileManager = FileManager.default
+    
+    // Directory for storing contact photos
+    private var photosDirectory: URL {
+        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        return documentsPath.appendingPathComponent("ContactPhotos")
+    }
     
     init() {
+        createPhotosDirectoryIfNeeded()
         loadContacts()
+    }
+    
+    private func createPhotosDirectoryIfNeeded() {
+        if !fileManager.fileExists(atPath: photosDirectory.path) {
+            try? fileManager.createDirectory(at: photosDirectory, withIntermediateDirectories: true)
+        }
+    }
+    
+    func savePhotoToFileSystem(_ photoData: Data, for contactId: UUID) -> String? {
+        let fileName = "\(contactId.uuidString).jpg"
+        let fileURL = photosDirectory.appendingPathComponent(fileName)
+        
+        do {
+            try photoData.write(to: fileURL)
+            return fileName
+        } catch {
+            print("Error saving photo: \(error)")
+            return nil
+        }
+    }
+    
+    func loadPhotoFromFileSystem(fileName: String) -> Data? {
+        let fileURL = photosDirectory.appendingPathComponent(fileName)
+        return try? Data(contentsOf: fileURL)
+    }
+    
+    func deletePhotoFromFileSystem(fileName: String) {
+        let fileURL = photosDirectory.appendingPathComponent(fileName)
+        try? fileManager.removeItem(at: fileURL)
     }
     
     func addContact(_ contact: Contact) {
@@ -23,9 +60,13 @@ class ContactManager: ObservableObject {
         let fullName = "\(cnContact.givenName) \(cnContact.familyName)".trimmingCharacters(in: .whitespaces)
         let firstName = cnContact.givenName.trimmingCharacters(in: .whitespaces)
         let nickname = cnContact.nickname.isEmpty ? nil : cnContact.nickname
-        let photoData = cnContact.imageData
         
-        return Contact(name: fullName, firstName: firstName, nickname: nickname, birthday: birthday, photoData: photoData)
+        var photoFileName: String? = nil
+        if let photoData = cnContact.imageData {
+            photoFileName = savePhotoToFileSystem(photoData, for: UUID())
+        }
+        
+        return Contact(name: fullName, firstName: firstName, nickname: nickname, birthday: birthday, photoFileName: photoFileName)
     }
     
     func saveBirthdayToContact(_ contact: CNContact, birthday: Date) async -> Bool {
@@ -57,6 +98,14 @@ class ContactManager: ObservableObject {
     }
     
     func deleteContact(at offsets: IndexSet) {
+        // Delete associated photos before removing contacts
+        for index in offsets {
+            let contact = contacts[index]
+            if let photoFileName = contact.photoFileName {
+                deletePhotoFromFileSystem(fileName: photoFileName)
+            }
+        }
+        
         contacts.remove(atOffsets: offsets)
         saveContacts()
     }
@@ -89,7 +138,7 @@ class ContactManager: ObservableObject {
         }
     }
     
-    private func saveContacts() {
+    func saveContacts() {
         if let encoded = try? JSONEncoder().encode(contacts) {
             userDefaults.set(encoded, forKey: contactsKey)
         }

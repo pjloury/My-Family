@@ -7,7 +7,7 @@ struct Contact: Identifiable, Codable {
     let firstName: String
     let nickname: String?
     let birthday: Date
-    let photoData: Data?
+    let photoFileName: String?
     
     var displayName: String {
         return nickname ?? name
@@ -113,8 +113,18 @@ struct Contact: Identifiable, Codable {
     }
     
     var photo: UIImage? {
-        guard let photoData = photoData else { return nil }
-        return UIImage(data: photoData)
+        guard let photoFileName = photoFileName else { return nil }
+        let fileManager = FileManager.default
+        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let filePath = documentsDirectory.appendingPathComponent("ContactPhotos").appendingPathComponent(photoFileName)
+        
+        do {
+            let photoData = try Data(contentsOf: filePath)
+            return UIImage(data: photoData)
+        } catch {
+            print("Error loading photo: \(error.localizedDescription)")
+            return nil
+        }
     }
     
     var zodiacSign: String {
