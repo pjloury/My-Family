@@ -120,16 +120,20 @@ struct Contact: Identifiable, Codable {
     }
     
     var photo: UIImage? {
-        guard let photoFileName = photoFileName else { return nil }
+        guard let photoFileName = photoFileName else { 
+            print("No photoFileName for contact: \(name)")
+            return nil 
+        }
         let fileManager = FileManager.default
         let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let filePath = documentsDirectory.appendingPathComponent("ContactPhotos").appendingPathComponent(photoFileName)
         
         do {
             let photoData = try Data(contentsOf: filePath)
+            print("Successfully loaded photo for contact: \(name)")
             return UIImage(data: photoData)
         } catch {
-            print("Error loading photo: \(error.localizedDescription)")
+            print("Error loading photo for contact \(name): \(error.localizedDescription)")
             return nil
         }
     }

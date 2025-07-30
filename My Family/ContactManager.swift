@@ -378,18 +378,55 @@ class ContactManager: ObservableObject {
         
         // Handle photo changes
         if let newPhotoData = photoData {
-            // Save new photo to file system
-            let photoFileName = savePhotoToFileSystem(newPhotoData, for: contactId)
-            
-            // Delete old photo if it exists
-            if let oldPhotoFileName = updatedContact.photoFileName {
-                deletePhotoFromFileSystem(fileName: oldPhotoFileName)
+            // Check if this is actually a new photo or just preserving the existing one
+            if let existingPhotoFileName = updatedContact.photoFileName {
+                // Try to load the existing photo data to compare
+                let fileManager = FileManager.default
+                let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                let existingFilePath = documentsDirectory.appendingPathComponent("ContactPhotos").appendingPathComponent(existingPhotoFileName)
+                
+                do {
+                    let existingPhotoData = try Data(contentsOf: existingFilePath)
+                    if existingPhotoData == newPhotoData {
+                        // Same photo data, don't change anything
+                        print("Photo data unchanged, preserving existing photo file")
+                    } else {
+                        // Different photo data, save new photo and delete old one
+                        print("Photo data changed, saving new photo")
+                        let photoFileName = savePhotoToFileSystem(newPhotoData, for: contactId)
+                        deletePhotoFromFileSystem(fileName: existingPhotoFileName)
+                        updatedContact.photoFileName = photoFileName
+                    }
+                } catch {
+                    // Existing photo file not found, save the new one
+                    print("Existing photo file not found, saving new photo")
+                    let photoFileName = savePhotoToFileSystem(newPhotoData, for: contactId)
+                    updatedContact.photoFileName = photoFileName
+                }
+            } else {
+                // No existing photo, save the new one
+                print("No existing photo, saving new photo")
+                let photoFileName = savePhotoToFileSystem(newPhotoData, for: contactId)
+                updatedContact.photoFileName = photoFileName
             }
-            
-            updatedContact.photoFileName = photoFileName
+        } else {
+            // If no new photo data provided, preserve the existing photo filename
+            // (This prevents losing the photo when only editing name/birthday)
+            // The photoFileName is already set in updatedContact, so we don't need to change it
+            print("No photo data provided, preserving existing photo")
         }
         
         contactLists[listIndex].contacts[contactIndex] = updatedContact
+        print("Updated contact: \(updatedContact.name), photoFileName: \(updatedContact.photoFileName ?? "nil")")
         saveContactLists()
+    }
+    
+    func getContact(by id: UUID) -> Contact? {
+        for list in contactLists {
+            if let contact = list.contacts.first(where: { $0.id == id }) {
+                return contact
+            }
+        }
+        return nil
     }
 } 

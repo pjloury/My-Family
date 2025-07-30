@@ -68,6 +68,7 @@ struct ContactRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
+        .id(contact.id) // Force refresh when contact changes
     }
 }
 

@@ -1,43 +1,19 @@
 import SwiftUI
 import PhotosUI
 import UIKit
-import Contacts // Added for CNContactStore
+import Contacts
 
-struct ContactEditView: View {
+struct ContactCreateView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var contactManager: ContactManager
-    let contact: Contact
+    @Binding var dismissParent: Bool
     
-    @State private var editedFirstName: String
-    @State private var editedLastName: String
-    @State private var editedBirthday: Date
+    @State private var editedFirstName: String = ""
+    @State private var editedLastName: String = ""
+    @State private var editedBirthday: Date = Date()
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var editedPhotoData: Data?
     @State private var showingPhotoPicker = false
-    
-    init(contact: Contact, contactManager: ContactManager) {
-        self.contact = contact
-        self.contactManager = contactManager
-        
-        // Parse the full name into first and last name
-        let nameParts = contact.name.split(separator: " ", maxSplits: 1)
-        let firstName = nameParts.count > 0 ? String(nameParts[0]) : ""
-        let lastName = nameParts.count > 1 ? String(nameParts[1]) : ""
-        
-        self._editedFirstName = State(initialValue: firstName)
-        self._editedLastName = State(initialValue: lastName)
-        self._editedBirthday = State(initialValue: contact.birthday)
-        
-        // Load existing photo data if available
-        if let photoFileName = contact.photoFileName {
-            let fileManager = FileManager.default
-            let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            let filePath = documentsDirectory.appendingPathComponent("ContactPhotos").appendingPathComponent(photoFileName)
-            self._editedPhotoData = State(initialValue: try? Data(contentsOf: filePath))
-        } else {
-            self._editedPhotoData = State(initialValue: nil)
-        }
-    }
     
     var body: some View {
         NavigationView {
@@ -84,7 +60,7 @@ struct ContactEditView: View {
                         }
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            Button("Change Photo") {
+                            Button("Add Photo") {
                                 showingPhotoPicker = true
                             }
                             .foregroundColor(.blue)
@@ -117,7 +93,7 @@ struct ContactEditView: View {
                             }
                             
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("\(fullName) • \(calculateAge())")
+                                Text("\(fullName.isEmpty ? "New Contact" : fullName) • \(calculateAge())")
                                     .font(.headline)
                                     .foregroundColor(.primary)
                                 
@@ -153,7 +129,7 @@ struct ContactEditView: View {
                     .padding(.vertical, 8)
                 }
             }
-            .navigationTitle("Edit Contact")
+            .navigationTitle("Create New Contact")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -164,8 +140,9 @@ struct ContactEditView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
-                        saveContact()
+                        createContact()
                         dismiss()
+                        dismissParent = true
                     }
                     .disabled(fullName.isEmpty)
                 }
@@ -201,32 +178,6 @@ struct ContactEditView: View {
             return lastName
         } else {
             return "\(firstName) \(lastName)"
-        }
-    }
-    
-    private func loadExistingPhotoData() -> Data? {
-        // Get the updated contact from the contact manager
-        guard let updatedContact = contactManager.getContact(by: contact.id) else { 
-            print("Could not find updated contact")
-            return nil 
-        }
-        
-        guard let photoFileName = updatedContact.photoFileName else { 
-            print("No photoFileName for updated contact: \(updatedContact.name)")
-            return nil 
-        }
-        
-        let fileManager = FileManager.default
-        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let filePath = documentsDirectory.appendingPathComponent("ContactPhotos").appendingPathComponent(photoFileName)
-        
-        do {
-            let photoData = try Data(contentsOf: filePath)
-            print("Successfully loaded existing photo for updated contact: \(updatedContact.name)")
-            return photoData
-        } catch {
-            print("Error loading existing photo for updated contact \(updatedContact.name): \(error.localizedDescription)")
-            return nil
         }
     }
     
@@ -346,94 +297,64 @@ struct ContactEditView: View {
         }
     }
     
-    private func saveContact() {
-        // Determine what photo data to pass
-        let photoDataToSave: Data?
-        if let newPhotoData = editedPhotoData {
-            // User selected a new photo
-            photoDataToSave = newPhotoData
-        } else if let existingPhotoData = loadExistingPhotoData() {
-            // User didn't change photo, but we need to preserve the existing one
-            photoDataToSave = existingPhotoData
-        } else {
-            // No photo at all
-            photoDataToSave = nil
-        }
-        
-        // Update the contact in the contact manager
-        contactManager.updateContact(
-            contactId: contact.id,
+    private func createContact() {
+        // Create a new Contact object
+        var newContact = Contact(
             name: fullName,
             firstName: editedFirstName.trimmingCharacters(in: .whitespacesAndNewlines),
+            nickname: nil,
             birthday: editedBirthday,
-            photoData: photoDataToSave
+            photoFileName: nil
         )
         
-        // Save changes back to iOS Contacts
+        // Save photo if available
+        if let photoData = editedPhotoData {
+            newContact.photoFileName = contactManager.savePhotoToFileSystem(photoData, for: newContact.id)
+        }
+        
+        // Add to family list
+        contactManager.addContact(newContact)
+        
+        // Save to device contacts
         Task {
-            await saveToSystemContacts()
+            await saveToDeviceContacts(newContact)
         }
     }
-
-    private func saveToSystemContacts() async {
+    
+    private func saveToDeviceContacts(_ contact: Contact) async {
         let store = CNContactStore()
         
         do {
-            // Fetch the original contact from iOS Contacts
-            let predicate = CNContact.predicateForContacts(matchingName: contact.name)
-            let keysToFetch: [CNKeyDescriptor] = [
-                CNContactGivenNameKey as CNKeyDescriptor,
-                CNContactFamilyNameKey as CNKeyDescriptor,
-                CNContactBirthdayKey as CNKeyDescriptor,
-                CNContactImageDataKey as CNKeyDescriptor
-            ]
+            // Create a new mutable contact
+            let newContact = CNMutableContact()
             
-            let contacts = try store.unifiedContacts(matching: predicate, keysToFetch: keysToFetch)
+            // Set the name
+            newContact.givenName = editedFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
+            newContact.familyName = editedLastName.trimmingCharacters(in: .whitespacesAndNewlines)
             
-            guard let systemContact = contacts.first else {
-                print("Could not find contact in system")
-                return
-            }
-            
-            // Create a mutable copy
-            let mutableContact = systemContact.mutableCopy() as! CNMutableContact
-            
-            // Update the fields
-            mutableContact.givenName = editedFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
-            mutableContact.familyName = editedLastName.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            // Update birthday
+            // Set the birthday
             let calendar = Calendar.current
-            let components = calendar.dateComponents([.year, .month, .day], from: editedBirthday)
-            mutableContact.birthday = components
+            let components = calendar.dateComponents([.year, .month, .day], from: contact.birthday)
+            newContact.birthday = components
             
-            // Update photo if changed
-            if let newPhotoData = editedPhotoData {
-                mutableContact.imageData = newPhotoData
+            // Set the photo if available
+            if let photoData = editedPhotoData {
+                newContact.imageData = photoData
             }
             
-            // Save to system
+            // Save to device contacts
             let saveRequest = CNSaveRequest()
-            saveRequest.update(mutableContact)
+            saveRequest.add(newContact, toContainerWithIdentifier: nil)
             
             try store.execute(saveRequest)
-            print("Successfully updated contact in system")
+            print("Successfully created new contact in device")
             
         } catch {
-            print("Failed to update system contact: \(error)")
+            print("Failed to create contact in device: \(error)")
         }
     }
 }
 
 #Preview {
-    ContactEditView(
-        contact: Contact(
-            name: "John Doe",
-            firstName: "John",
-            nickname: nil,
-            birthday: Date().addingTimeInterval(-30*365*24*60*60),
-            photoFileName: nil
-        ),
-        contactManager: ContactManager()
-    )
+    ContactCreateView(contactManager: ContactManager(), dismissParent: .constant(false))
 } 

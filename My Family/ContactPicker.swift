@@ -18,6 +18,8 @@ struct ContactPicker: View {
     @State private var contactScores: [String: Int] = [:]
     @State private var displayNames: [String: String] = [:]
     @State private var debouncedSearchText = ""
+    @State private var showingCreateContact = false
+    @State private var dismissContactPicker = false
     
     var body: some View {
         NavigationView {
@@ -157,6 +159,16 @@ struct ContactPicker: View {
                         dismiss()
                     }
                 }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showingCreateContact = true
+                    }) {
+                        Image(systemName: "plus")
+                            .font(.title2)
+                            .fontWeight(.medium)
+                    }
+                }
             }
         }
         .task {
@@ -177,6 +189,14 @@ struct ContactPicker: View {
                     showingBirthdayInput = false
                     selectedContact = nil
                 }
+            }
+        }
+        .sheet(isPresented: $showingCreateContact) {
+            ContactCreateView(contactManager: contactManager, dismissParent: $dismissContactPicker)
+        }
+        .onChange(of: dismissContactPicker) { oldValue, newValue in
+            if newValue {
+                dismiss()
             }
         }
         .navigationViewStyle(.stack)
