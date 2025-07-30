@@ -158,6 +158,8 @@ class ContactManager: ObservableObject {
                 }
             case .daysUntilBirthday:
                 comparison = first.daysUntilNextBirthday < second.daysUntilNextBirthday ? .orderedAscending : first.daysUntilNextBirthday > second.daysUntilNextBirthday ? .orderedDescending : .orderedSame
+            @unknown default:
+                comparison = first.firstName.localizedCaseInsensitiveCompare(second.firstName)
             }
             
             // Apply sort direction
@@ -166,6 +168,8 @@ class ContactManager: ObservableObject {
                 return comparison == .orderedAscending
             case .descending:
                 return comparison == .orderedDescending
+            @unknown default:
+                return comparison == .orderedAscending
             }
         }
         
@@ -294,9 +298,15 @@ class ContactManager: ObservableObject {
         case .authorized:
             print("Contacts access already authorized")
             return true
-        case .denied, .restricted:
-            print("Contacts access denied or restricted")
+        case .denied:
+            print("Contacts access denied")
             return false
+        case .restricted:
+            print("Contacts access restricted")
+            return false
+        case .limited:
+            print("Contacts access limited")
+            return true
         case .notDetermined:
             print("Requesting contacts access...")
             return await withCheckedContinuation { continuation in

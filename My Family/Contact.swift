@@ -75,12 +75,16 @@ struct Contact: Identifiable, Codable {
         
         if months > 0 {
             if days > 0 {
-                return "\(months) months, \(days) days"
+                let monthText = months == 1 ? "month" : "months"
+                let dayText = days == 1 ? "day" : "days"
+                return "\(months) \(monthText), \(days) \(dayText)"
             } else {
-                return "\(months) months"
+                let monthText = months == 1 ? "month" : "months"
+                return "\(months) \(monthText)"
             }
         } else {
-            return "\(days) days"
+            let dayText = days == 1 ? "day" : "days"
+            return "\(days) \(dayText)"
         }
     }
     
@@ -107,9 +111,11 @@ struct Contact: Identifiable, Codable {
         
         if roundedMonths < 1 {
             // If less than 1 month, show days
-            return "\(totalDays) days"
+            let dayText = totalDays == 1 ? "day" : "days"
+            return "\(totalDays) \(dayText)"
         } else {
-            return "\(roundedMonths) months"
+            let monthText = roundedMonths == 1 ? "month" : "months"
+            return "\(roundedMonths) \(monthText)"
         }
     }
     
@@ -252,9 +258,6 @@ struct Contact: Identifiable, Codable {
         }
         
         let calendar = Calendar.current
-        let now = Date()
-        let currentYear = calendar.component(.year, from: now)
-        let currentMonth = calendar.component(.month, from: now)
         
         // Typical school year starts in August/September
         // Students born before September 1st are in the grade for their age

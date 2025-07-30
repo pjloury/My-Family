@@ -165,7 +165,7 @@ struct ContactEditView: View {
                 }
             }
             .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedPhoto, matching: .images)
-            .onChange(of: selectedPhoto) { _ in
+            .onChange(of: selectedPhoto) { oldValue, newValue in
                 if let selectedPhoto = selectedPhoto {
                     selectedPhoto.loadTransferable(type: Data.self) { result in
                         switch result {
@@ -291,9 +291,11 @@ struct ContactEditView: View {
         let roundedMonths = totalDays / 30
         
         if roundedMonths < 1 {
-            return "\(totalDays) days"
+            let dayText = totalDays == 1 ? "day" : "days"
+            return "\(totalDays) \(dayText)"
         } else {
-            return "\(roundedMonths) months"
+            let monthText = roundedMonths == 1 ? "month" : "months"
+            return "\(roundedMonths) \(monthText)"
         }
     }
     

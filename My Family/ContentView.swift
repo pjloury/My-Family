@@ -41,7 +41,7 @@ struct ContentView: View {
                         }
                     }
                     .pickerStyle(MenuPickerStyle())
-                    .onChange(of: contactManager.currentList?.selectedSortOption) { _ in
+                    .onChange(of: contactManager.currentList?.selectedSortOption) { oldValue, newValue in
                         withAnimation(.easeInOut(duration: 0.5)) {
                             contactManager.sortContacts()
                         }
@@ -122,7 +122,7 @@ struct ContentView: View {
                                 .font(.title2)
                                 .padding(.horizontal, 20)
                                 .focused($isTitleFieldFocused)
-                                .onChange(of: editingTitle) { newValue in
+                                .onChange(of: editingTitle) { oldValue, newValue in
                                     // Limit to 12 characters
                                     if newValue.count > 12 {
                                         editingTitle = String(newValue.prefix(12))

@@ -9,27 +9,37 @@ struct BirthdayInputView: View {
     
     @State private var selectedDate: Date
     @State private var showingDatePicker = false
+    @State private var hasPartialBirthday: Bool
     
     init(contact: CNContact, onBirthdaySelected: @escaping (Date) -> Void, onCancel: @escaping () -> Void) {
         self.contact = contact
         self.onBirthdaySelected = onBirthdaySelected
         self.onCancel = onCancel
         
-        // Initialize with known birthday information
+        // Check if we have partial birthday information
         if let birthday = contact.birthday,
            let month = birthday.month,
            let day = birthday.day {
+            self._hasPartialBirthday = State(initialValue: true)
             let calendar = Calendar.current
             let currentYear = calendar.component(.year, from: Date())
             
             // Use the known month and day, with current year as default
             // This provides a reasonable starting point that the user can adjust
             let components = DateComponents(year: currentYear, month: month, day: day)
-            self._selectedDate = State(initialValue: calendar.date(from: components) ?? Date())
+            let defaultDate = calendar.date(from: components) ?? Self.getDefaultBirthday()
+            self._selectedDate = State(initialValue: defaultDate)
         } else {
-            // Fallback to today's date if no birthday info is available
-            self._selectedDate = State(initialValue: Date())
+            self._hasPartialBirthday = State(initialValue: false)
+            // Use a sensible default date (June 15th, 1990) if no birthday info is available
+            self._selectedDate = State(initialValue: Self.getDefaultBirthday())
         }
+    }
+    
+    private static func getDefaultBirthday() -> Date {
+        let calendar = Calendar.current
+        let components = DateComponents(year: 1990, month: 6, day: 15)
+        return calendar.date(from: components) ?? Date()
     }
     
     var body: some View {
@@ -55,8 +65,12 @@ struct BirthdayInputView: View {
                         .font(.title2)
                         .fontWeight(.semibold)
                     
-                    if let birthday = contact.birthday {
-                        Text("Current: \(birthday.month ?? 0)/\(birthday.day ?? 0)")
+                    if hasPartialBirthday {
+                        Text("Partial birthday known: \(contact.birthday?.month ?? 0)/\(contact.birthday?.day ?? 0)")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    } else {
+                        Text("No birthday information available")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -69,11 +83,19 @@ struct BirthdayInputView: View {
                         .font(.headline)
                         .multilineTextAlignment(.center)
                     
-                    Text("Please select the complete birthdate (month, day, and year) to add this person to your family list.")
-                        .font(.body)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                    if hasPartialBirthday {
+                        Text("We found partial birthday information. Please select the complete birthdate (month, day, and year) to add this person to your family list.")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    } else {
+                        Text("Please select the complete birthdate (month, day, and year) to add this person to your family list.")
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
                 }
                 
                 // Date Display
@@ -82,13 +104,19 @@ struct BirthdayInputView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    Text(selectedDate, style: .date)
-                        .font(.title3)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
+                    Button(action: {
+                        showingDatePicker = true
+                    }) {
+                        Text(selectedDate, style: .date)
+                            .font(.title3)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
                 
                 // Date Picker Button

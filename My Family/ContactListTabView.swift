@@ -72,7 +72,7 @@ struct ContactListTabView: View {
     var body: some View {
         VStack(spacing: 0) {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
+                HStack(spacing: 8) {
                     ForEach(Array(contactManager.contactLists.enumerated()), id: \.element.id) { index, list in
                         let truncatedTitle = String(list.title.prefix(12))
                         let isSelected = contactManager.selectedListIndex == index

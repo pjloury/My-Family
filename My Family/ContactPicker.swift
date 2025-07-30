@@ -69,12 +69,18 @@ struct ContactPicker: View {
                             TextField("Search contacts...", text: $searchText)
                                 .textFieldStyle(PlainTextFieldStyle())
                                 .onChange(of: searchText) {
-                                    // Debounce search to reduce filtering frequency
-                                    Task {
-                                        try? await Task.sleep(nanoseconds: 300_000_000) // 300ms delay
-                                        await MainActor.run {
-                                            debouncedSearchText = searchText
-                                            filterContacts()
+                                    // If search text is empty, update immediately without debouncing
+                                    if searchText.isEmpty {
+                                        debouncedSearchText = ""
+                                        filterContacts()
+                                    } else {
+                                        // Debounce search to reduce filtering frequency
+                                        Task {
+                                            try? await Task.sleep(nanoseconds: 300_000_000) // 300ms delay
+                                            await MainActor.run {
+                                                debouncedSearchText = searchText
+                                                filterContacts()
+                                            }
                                         }
                                     }
                                 }
@@ -82,6 +88,7 @@ struct ContactPicker: View {
                             if !searchText.isEmpty {
                                 Button("Clear") {
                                     searchText = ""
+                                    debouncedSearchText = ""
                                     filterContacts()
                                 }
                                 .foregroundColor(.blue)
@@ -187,8 +194,10 @@ struct ContactPicker: View {
             await MainActor.run {
                 debugInfo += "\nTotal contacts fetched: \(contacts.count)"
                 
-                // Show ALL contacts, not just those with birthdays
-                deviceContacts = contacts
+                // Filter out contacts without names and show only valid contacts
+                deviceContacts = contacts.filter { contact in
+                    hasValidName(contact)
+                }
                 
                 // Sort contacts by relevance (family members first)
                 deviceContacts.sort { contact1, contact2 in
@@ -315,6 +324,20 @@ struct ContactPicker: View {
                 }
             }
         }
+    }
+    
+    private func hasValidName(_ contact: CNContact) -> Bool {
+        // Check if contact has a nickname
+        if !contact.nickname.isEmpty {
+            return true
+        }
+        
+        // Check if contact has a given name or family name
+        let hasGivenName = !contact.givenName.isEmpty
+        let hasFamilyName = !contact.familyName.isEmpty
+        
+        // Contact is valid if it has either a given name or family name
+        return hasGivenName || hasFamilyName
     }
     
     private func hasCompleteBirthday(_ contact: CNContact) -> Bool {
