@@ -10,6 +10,7 @@ struct ContactEditView: View {
     
     @State private var editedFirstName: String
     @State private var editedLastName: String
+    @State private var editedPhoneNumber: String
     @State private var editedBirthday: Date
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var editedPhotoData: Data?
@@ -26,6 +27,7 @@ struct ContactEditView: View {
         
         self._editedFirstName = State(initialValue: firstName)
         self._editedLastName = State(initialValue: lastName)
+        self._editedPhoneNumber = State(initialValue: contact.phoneNumber ?? "")
         self._editedBirthday = State(initialValue: contact.birthday)
         
         // Load existing photo data if available
@@ -59,6 +61,16 @@ struct ContactEditView: View {
                         
                         TextField("Enter last name", text: $editedLastName)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Phone Number (Optional)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        TextField("Enter phone number", text: $editedPhoneNumber)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .keyboardType(.phonePad)
                     }
                 }
                 
@@ -366,7 +378,8 @@ struct ContactEditView: View {
             name: fullName,
             firstName: editedFirstName.trimmingCharacters(in: .whitespacesAndNewlines),
             birthday: editedBirthday,
-            photoData: photoDataToSave
+            photoData: photoDataToSave,
+            phoneNumber: editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         
         // Save changes back to iOS Contacts
@@ -402,6 +415,12 @@ struct ContactEditView: View {
             mutableContact.givenName = editedFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
             mutableContact.familyName = editedLastName.trimmingCharacters(in: .whitespacesAndNewlines)
             
+            // Update phone number if provided
+            if !editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let phoneNumber = CNPhoneNumber(stringValue: editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines))
+                mutableContact.phoneNumbers = [CNLabeledValue(label: CNLabelPhoneNumberMain, value: phoneNumber)]
+            }
+            
             // Update birthday
             let calendar = Calendar.current
             let components = calendar.dateComponents([.year, .month, .day], from: editedBirthday)
@@ -432,7 +451,8 @@ struct ContactEditView: View {
             firstName: "John",
             nickname: nil,
             birthday: Date().addingTimeInterval(-30*365*24*60*60),
-            photoFileName: nil
+            photoFileName: nil,
+            phoneNumber: nil
         ),
         contactManager: ContactManager()
     )

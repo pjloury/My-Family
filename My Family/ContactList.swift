@@ -92,12 +92,20 @@ struct ContactList: Identifiable, Codable {
                     }
                 }
             case .daysUntilBirthday:
-                if first.daysUntilNextBirthday < second.daysUntilNextBirthday {
+                // Special handling for today's birthday (0 days) - they should come first
+                if first.daysUntilNextBirthday == 0 && second.daysUntilNextBirthday != 0 {
                     comparison = .orderedAscending
-                } else if first.daysUntilNextBirthday > second.daysUntilNextBirthday {
+                } else if first.daysUntilNextBirthday != 0 && second.daysUntilNextBirthday == 0 {
                     comparison = .orderedDescending
                 } else {
-                    comparison = .orderedSame
+                    // Normal comparison for other cases
+                    if first.daysUntilNextBirthday < second.daysUntilNextBirthday {
+                        comparison = .orderedAscending
+                    } else if first.daysUntilNextBirthday > second.daysUntilNextBirthday {
+                        comparison = .orderedDescending
+                    } else {
+                        comparison = .orderedSame
+                    }
                 }
             }
             

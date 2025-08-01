@@ -86,7 +86,10 @@ class ContactManager: ObservableObject {
             photoFileName = savePhotoToFileSystem(photoData, for: UUID())
         }
         
-        return Contact(name: fullName, firstName: firstName, nickname: nickname, birthday: birthday, photoFileName: photoFileName)
+        // Get the first phone number if available
+        let phoneNumber = cnContact.phoneNumbers.first?.value.stringValue
+        
+        return Contact(name: fullName, firstName: firstName, nickname: nickname, birthday: birthday, photoFileName: photoFileName, phoneNumber: phoneNumber)
     }
     
     func saveBirthdayToContact(_ contact: CNContact, birthday: Date) async -> Bool {
@@ -365,7 +368,7 @@ class ContactManager: ObservableObject {
         return fetchedContacts
     }
     
-    func updateContact(contactId: UUID, name: String, firstName: String, birthday: Date, photoData: Data?) {
+    func updateContact(contactId: UUID, name: String, firstName: String, birthday: Date, photoData: Data?, phoneNumber: String?) {
         guard let listIndex = contactLists.firstIndex(where: { $0.id == (currentList?.id ?? UUID()) }),
               let contactIndex = contactLists[listIndex].contacts.firstIndex(where: { $0.id == contactId }) else {
             return
@@ -375,6 +378,7 @@ class ContactManager: ObservableObject {
         updatedContact.name = name
         updatedContact.firstName = firstName
         updatedContact.birthday = birthday
+        updatedContact.phoneNumber = phoneNumber
         
         // Handle photo changes
         if let newPhotoData = photoData {

@@ -10,6 +10,7 @@ struct ContactCreateView: View {
     
     @State private var editedFirstName: String = ""
     @State private var editedLastName: String = ""
+    @State private var editedPhoneNumber: String = ""
     @State private var editedBirthday: Date = Date()
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var editedPhotoData: Data?
@@ -35,6 +36,16 @@ struct ContactCreateView: View {
                         
                         TextField("Enter last name", text: $editedLastName)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Phone Number (Optional)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        TextField("Enter phone number", text: $editedPhoneNumber)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .keyboardType(.phonePad)
                     }
                 }
                 
@@ -304,7 +315,8 @@ struct ContactCreateView: View {
             firstName: editedFirstName.trimmingCharacters(in: .whitespacesAndNewlines),
             nickname: nil,
             birthday: editedBirthday,
-            photoFileName: nil
+            photoFileName: nil,
+            phoneNumber: editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         
         // Save photo if available
@@ -331,6 +343,12 @@ struct ContactCreateView: View {
             // Set the name
             newContact.givenName = editedFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
             newContact.familyName = editedLastName.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Set the phone number if provided
+            if !editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let phoneNumber = CNPhoneNumber(stringValue: editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines))
+                newContact.phoneNumbers = [CNLabeledValue(label: CNLabelPhoneNumberMain, value: phoneNumber)]
+            }
             
             // Set the birthday
             let calendar = Calendar.current

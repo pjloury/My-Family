@@ -22,11 +22,10 @@ struct BirthdayInputView: View {
            let day = birthday.day {
             self._hasPartialBirthday = State(initialValue: true)
             let calendar = Calendar.current
-            let currentYear = calendar.component(.year, from: Date())
             
-            // Use the known month and day, with current year as default
+            // Use the known month and day, with 1990 as default year
             // This provides a reasonable starting point that the user can adjust
-            let components = DateComponents(year: currentYear, month: month, day: day)
+            let components = DateComponents(year: 1990, month: month, day: day)
             let defaultDate = calendar.date(from: components) ?? Self.getDefaultBirthday()
             self._selectedDate = State(initialValue: defaultDate)
         } else {

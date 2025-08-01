@@ -2,13 +2,14 @@ import Foundation
 import SwiftUI
 import UIKit
 
-struct Contact: Identifiable, Codable {
+struct Contact: Identifiable, Codable, Equatable {
     var id = UUID()
     var name: String
     var firstName: String
     let nickname: String?
     var birthday: Date
     var photoFileName: String?
+    var phoneNumber: String?
     
     var displayName: String {
         return nickname ?? name
@@ -25,16 +26,20 @@ struct Contact: Identifiable, Codable {
         let calendar = Calendar.current
         let now = Date()
         
+        // Get today's date components (year, month, day only)
+        let todayComponents = calendar.dateComponents([.year, .month, .day], from: now)
+        let today = calendar.date(from: todayComponents) ?? now
+        
         // Get this year's birthday
         let thisYear = calendar.component(.year, from: now)
         var nextBirthday = calendar.date(from: DateComponents(year: thisYear, month: calendar.component(.month, from: birthday), day: calendar.component(.day, from: birthday))) ?? birthday
         
         // If this year's birthday has passed, get next year's birthday
-        if nextBirthday < now {
+        if nextBirthday < today {
             nextBirthday = calendar.date(from: DateComponents(year: thisYear + 1, month: calendar.component(.month, from: birthday), day: calendar.component(.day, from: birthday))) ?? birthday
         }
         
-        let days = calendar.dateComponents([.day], from: now, to: nextBirthday).day ?? 0
+        let days = calendar.dateComponents([.day], from: today, to: nextBirthday).day ?? 0
         return days
     }
     
