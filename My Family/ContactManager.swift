@@ -2,21 +2,53 @@ import Foundation
 import SwiftUI
 import Contacts
 import UIKit
+import WidgetKit
 
 class ContactManager: ObservableObject {
     @Published var contactLists: [ContactList] = []
     @Published var selectedListIndex: Int = 0
+    @Published var isSpecialDatesSelected: Bool = false
+
+    /// All (contact, specialDate) pairs across every list, sorted by days until next occurrence.
+    var specialDatesContacts: [(contact: Contact, specialDate: SpecialDate)] {
+        contactLists
+            .flatMap { $0.contacts }
+            .flatMap { contact in contact.specialDates.map { (contact, $0) } }
+            .sorted { $0.specialDate.daysUntilNext < $1.specialDate.daysUntilNext }
+    }
+
+    var hasSpecialDates: Bool {
+        contactLists.contains { $0.contacts.contains { !$0.specialDates.isEmpty } }
+    }
     
     // Feature flag to toggle between flat UI colors and stock iOS colors
     static let useFlatUIColors = false
     
+    // Feature flag to enable/disable notification functionality
+    static let notificationsEnabled = true
+    
+    // Feature flag to enable/disable developer mode (shows debug buttons)
+    static let devModeEnabled = false
+    
     private let contactStore = CNContactStore()
     private let fileManager = FileManager.default
     
-    // Directory for storing contact photos
+    static let appGroupID = "group.pjloury.My-Family"
+
+    // Shared App Group container so the widget can also read photos
     private var photosDirectory: URL {
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        return documentsPath.appendingPathComponent("ContactPhotos")
+        if let groupURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupID) {
+            return groupURL.appendingPathComponent("ContactPhotos")
+        }
+        // Fallback to Documents if App Group not available (shouldn't happen in production)
+        return fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("ContactPhotos")
+    }
+
+    // Legacy Documents-based directory used before App Group migration
+    private var legacyPhotosDirectory: URL {
+        fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("ContactPhotos")
     }
     
     private let contactListsKey = "SavedContactLists"
@@ -39,11 +71,30 @@ class ContactManager: ObservableObject {
             contactLists.append(defaultList)
             saveContactLists()
         }
+        
+        // Schedule notifications for existing contacts (only if enabled)
+        if ContactManager.notificationsEnabled {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                NotificationManager.shared.checkAndScheduleNotifications(for: self)
+            }
+        }
     }
     
     private func createPhotosDirectoryIfNeeded() {
         if !fileManager.fileExists(atPath: photosDirectory.path) {
             try? fileManager.createDirectory(at: photosDirectory, withIntermediateDirectories: true)
+        }
+        migrateLegacyPhotosIfNeeded()
+    }
+
+    private func migrateLegacyPhotosIfNeeded() {
+        guard fileManager.fileExists(atPath: legacyPhotosDirectory.path) else { return }
+        guard let files = try? fileManager.contentsOfDirectory(atPath: legacyPhotosDirectory.path) else { return }
+        for file in files {
+            let src = legacyPhotosDirectory.appendingPathComponent(file)
+            let dst = photosDirectory.appendingPathComponent(file)
+            guard !fileManager.fileExists(atPath: dst.path) else { continue }
+            try? fileManager.copyItem(at: src, to: dst)
         }
     }
     
@@ -74,6 +125,11 @@ class ContactManager: ObservableObject {
         guard selectedListIndex < contactLists.count else { return }
         contactLists[selectedListIndex].addContact(contact)
         saveContactLists()
+        
+        // Schedule notifications for the new contact (only if enabled)
+        if ContactManager.notificationsEnabled {
+            NotificationManager.shared.checkAndScheduleNotifications(for: self)
+        }
     }
     
     func createContact(from cnContact: CNContact, birthday: Date) -> Contact {
@@ -133,6 +189,11 @@ class ContactManager: ObservableObject {
         
         contactLists[selectedListIndex].deleteContact(at: offsets)
         saveContactLists()
+        
+        // Update notifications after deleting contacts (only if enabled)
+        if ContactManager.notificationsEnabled {
+            NotificationManager.shared.checkAndScheduleNotifications(for: self)
+        }
     }
     
     func sortContacts() {
@@ -275,8 +336,12 @@ class ContactManager: ObservableObject {
     func saveContactLists() {
         if let encoded = try? JSONEncoder().encode(contactLists) {
             userDefaults.set(encoded, forKey: contactListsKey)
+            // Sync to App Group so the widget can read it
+            UserDefaults(suiteName: "group.pjloury.My-Family")?.set(encoded, forKey: contactListsKey)
         }
         userDefaults.set(selectedListIndex, forKey: selectedListIndexKey)
+        // Tell WidgetKit to reload so the widget picks up the latest contacts immediately
+        WidgetCenter.shared.reloadAllTimelines()
     }
     
     private func loadContactLists() {
@@ -368,7 +433,7 @@ class ContactManager: ObservableObject {
         return fetchedContacts
     }
     
-    func updateContact(contactId: UUID, name: String, firstName: String, birthday: Date, photoData: Data?, phoneNumber: String?) {
+    func updateContact(contactId: UUID, name: String, firstName: String, birthday: Date, photoData: Data?, phoneNumber: String?, deceasedDate: Date? = nil, specialDates: [SpecialDate] = []) {
         guard let listIndex = contactLists.firstIndex(where: { $0.id == (currentList?.id ?? UUID()) }),
               let contactIndex = contactLists[listIndex].contacts.firstIndex(where: { $0.id == contactId }) else {
             return
@@ -379,6 +444,8 @@ class ContactManager: ObservableObject {
         updatedContact.firstName = firstName
         updatedContact.birthday = birthday
         updatedContact.phoneNumber = phoneNumber
+        updatedContact.deceasedDate = deceasedDate
+        updatedContact.specialDates = specialDates
         
         // Handle photo changes
         if let newPhotoData = photoData {
@@ -423,6 +490,11 @@ class ContactManager: ObservableObject {
         contactLists[listIndex].contacts[contactIndex] = updatedContact
         print("Updated contact: \(updatedContact.name), photoFileName: \(updatedContact.photoFileName ?? "nil")")
         saveContactLists()
+        
+        // Update notifications after modifying contact (only if enabled)
+        if ContactManager.notificationsEnabled {
+            NotificationManager.shared.checkAndScheduleNotifications(for: self)
+        }
     }
     
     func getContact(by id: UUID) -> Contact? {

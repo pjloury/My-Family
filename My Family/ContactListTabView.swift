@@ -87,6 +87,7 @@ struct ContactListTabView: View {
                             onTap: {
                                 withAnimation(.easeInOut(duration: 0.3)) {
                                     contactManager.selectedListIndex = index
+                                    contactManager.isSpecialDatesSelected = false
                                 }
                             },
                             onLongPress: {
@@ -96,6 +97,23 @@ struct ContactListTabView: View {
                         )
                     }
                     
+                    // Special Dates auto-tab (appears when any contact has special dates)
+                    if contactManager.hasSpecialDates {
+                        let isSelected = contactManager.isSpecialDatesSelected
+                        ContactListTab(
+                            title: "📅 Dates",
+                            isSelected: isSelected,
+                            primaryColor: .purple,
+                            secondaryColor: .purple.opacity(0.3),
+                            onTap: {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    contactManager.isSpecialDatesSelected = true
+                                }
+                            },
+                            onLongPress: {}
+                        )
+                    }
+
                     // Add new list button
                     Button(action: {
                         showingNewListAlert = true

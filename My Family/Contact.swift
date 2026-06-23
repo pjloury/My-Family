@@ -2,6 +2,39 @@ import Foundation
 import SwiftUI
 import UIKit
 
+struct SpecialDate: Identifiable, Codable, Equatable {
+    var id = UUID()
+    var date: Date
+    var label: String = ""
+
+    var daysUntilNext: Int {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let thisYear = calendar.component(.year, from: today)
+        let month = calendar.component(.month, from: date)
+        let day = calendar.component(.day, from: date)
+        var next = calendar.date(from: DateComponents(year: thisYear, month: month, day: day)) ?? date
+        if next < today {
+            next = calendar.date(from: DateComponents(year: thisYear + 1, month: month, day: day)) ?? date
+        }
+        return calendar.dateComponents([.day], from: today, to: next).day ?? 0
+    }
+
+    var monthsUntilNext: String {
+        let days = daysUntilNext
+        if days == 0 { return "Today" }
+        let months = days / 30
+        if months < 1 {
+            return days == 1 ? "1 day" : "\(days) days"
+        }
+        return months == 1 ? "1 month" : "\(months) months"
+    }
+
+    var displayLabel: String {
+        label.isEmpty ? "Special Date" : label
+    }
+}
+
 struct Contact: Identifiable, Codable, Equatable {
     var id = UUID()
     var name: String
@@ -10,11 +43,63 @@ struct Contact: Identifiable, Codable, Equatable {
     var birthday: Date
     var photoFileName: String?
     var phoneNumber: String?
-    
+    var notificationsEnabled: Bool = true
+    var calendarReminderEnabled: Bool = true
+    var deceasedDate: Date?
+    var specialDates: [SpecialDate] = []
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, firstName, nickname, birthday, photoFileName, phoneNumber
+        case notificationsEnabled, calendarReminderEnabled, deceasedDate, specialDates
+    }
+
+    init(name: String, firstName: String, nickname: String?, birthday: Date, photoFileName: String?, phoneNumber: String? = nil, notificationsEnabled: Bool = true, calendarReminderEnabled: Bool = true, deceasedDate: Date? = nil, specialDates: [SpecialDate] = []) {
+        self.name = name
+        self.firstName = firstName
+        self.nickname = nickname
+        self.birthday = birthday
+        self.photoFileName = photoFileName
+        self.phoneNumber = phoneNumber
+        self.notificationsEnabled = notificationsEnabled
+        self.calendarReminderEnabled = calendarReminderEnabled
+        self.deceasedDate = deceasedDate
+        self.specialDates = specialDates
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try c.decode(String.self, forKey: .name)
+        firstName = try c.decode(String.self, forKey: .firstName)
+        nickname = try c.decodeIfPresent(String.self, forKey: .nickname)
+        birthday = try c.decode(Date.self, forKey: .birthday)
+        photoFileName = try c.decodeIfPresent(String.self, forKey: .photoFileName)
+        phoneNumber = try c.decodeIfPresent(String.self, forKey: .phoneNumber)
+        notificationsEnabled = try c.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? true
+        calendarReminderEnabled = try c.decodeIfPresent(Bool.self, forKey: .calendarReminderEnabled) ?? true
+        deceasedDate = try c.decodeIfPresent(Date.self, forKey: .deceasedDate)
+        specialDates = try c.decodeIfPresent([SpecialDate].self, forKey: .specialDates) ?? []
+    }
+
     var displayName: String {
         return nickname ?? name
     }
-    
+
+    var isDeceased: Bool {
+        return deceasedDate != nil
+    }
+
+    // Age they lived to (nil if still living)
+    var ageAtDeath: Int? {
+        guard let deceasedDate = deceasedDate else { return nil }
+        return Calendar.current.dateComponents([.year], from: birthday, to: deceasedDate).year
+    }
+
+    // Age they would be if still alive
+    var wouldBeAge: Int {
+        return Calendar.current.dateComponents([.year], from: birthday, to: Date()).year ?? 0
+    }
+
     var age: Int {
         let calendar = Calendar.current
         let now = Date()
@@ -125,22 +210,22 @@ struct Contact: Identifiable, Codable, Equatable {
     }
     
     var photo: UIImage? {
-        guard let photoFileName = photoFileName else { 
-            print("No photoFileName for contact: \(name)")
-            return nil 
-        }
+        guard let photoFileName = photoFileName else { return nil }
         let fileManager = FileManager.default
-        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let filePath = documentsDirectory.appendingPathComponent("ContactPhotos").appendingPathComponent(photoFileName)
-        
-        do {
-            let photoData = try Data(contentsOf: filePath)
-            print("Successfully loaded photo for contact: \(name)")
-            return UIImage(data: photoData)
-        } catch {
-            print("Error loading photo for contact \(name): \(error.localizedDescription)")
-            return nil
+        // Try App Group first (current save location)
+        if let groupURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.pjloury.My-Family") {
+            let groupPath = groupURL.appendingPathComponent("ContactPhotos").appendingPathComponent(photoFileName)
+            if let data = try? Data(contentsOf: groupPath) {
+                return UIImage(data: data)
+            }
         }
+        // Fall back to Documents (legacy location for pre-migration photos)
+        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let legacyPath = documentsDirectory.appendingPathComponent("ContactPhotos").appendingPathComponent(photoFileName)
+        if let data = try? Data(contentsOf: legacyPath) {
+            return UIImage(data: data)
+        }
+        return nil
     }
     
     var zodiacSign: String {

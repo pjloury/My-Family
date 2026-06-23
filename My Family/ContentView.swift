@@ -22,6 +22,14 @@ struct ContentView: View {
     @State private var calendarSuccessMessage = ""
     @State private var birthdayContact: Contact?
     @State private var isBreathing = false
+    @State private var showingNotificationPermission = false
+    @State private var isNotificationMode = false
+    @State private var showingTimingSettings = false
+    @State private var isCalendarMode = false
+    @State private var syncedContactIDs: Set<UUID> = []
+    @State private var isCheckingCalendar = false
+    @State private var isApplyingCalendar = false
+    @State private var markedForRemovalIDs: Set<UUID> = []
     
     private var editingTitleBinding: Binding<String> {
         Binding(
@@ -72,6 +80,9 @@ struct ContentView: View {
                 }
             }
             .pickerStyle(MenuPickerStyle())
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
             .onChange(of: contactManager.currentList?.selectedSortOption) { oldValue, newValue in
                 withAnimation(.easeInOut(duration: 0.5)) {
                     contactManager.sortContacts()
@@ -96,7 +107,197 @@ struct ContentView: View {
         .background(Color(.systemGray6))
     }
     
-        private var birthdayPillButton: some View {
+    // MARK: - Calendar mode
+
+    private var calendarModeBar: some View {
+        let contacts = contactManager.currentList?.contacts ?? []
+        let toAdd = contacts.filter { $0.calendarReminderEnabled && !syncedContactIDs.contains($0.id) }
+        let toRemove = contacts.filter { markedForRemovalIDs.contains($0.id) }
+        let syncedKept = contacts.filter { syncedContactIDs.contains($0.id) && !markedForRemovalIDs.contains($0.id) }
+        let excluded = contacts.filter { !$0.calendarReminderEnabled && !syncedContactIDs.contains($0.id) }
+        let hasPendingChanges = !toAdd.isEmpty || !toRemove.isEmpty
+
+        return HStack(spacing: 10) {
+            // Status chips
+            if isCheckingCalendar {
+                ProgressView().scaleEffect(0.7)
+                Text("Checking…").font(.caption).foregroundColor(.secondary)
+            } else {
+                if syncedKept.count > 0 {
+                    Label("\(syncedKept.count)", systemImage: "checkmark.circle.fill")
+                        .font(.caption2).foregroundColor(.green)
+                }
+                if toAdd.count > 0 {
+                    Label("+\(toAdd.count)", systemImage: "calendar.badge.plus")
+                        .font(.caption2).foregroundColor(.blue)
+                }
+                if toRemove.count > 0 {
+                    Label("−\(toRemove.count)", systemImage: "calendar.badge.minus")
+                        .font(.caption2).foregroundColor(.red)
+                }
+                if excluded.count > 0 {
+                    Label("\(excluded.count)", systemImage: "minus.circle")
+                        .font(.caption2).foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            // Select all / deselect all (only non-synced contacts)
+            let unsyncedContacts = contacts.filter { !syncedContactIDs.contains($0.id) }
+            if !unsyncedContacts.isEmpty {
+                let allEnabled = unsyncedContacts.allSatisfy { $0.calendarReminderEnabled }
+                Button(allEnabled ? "Deselect All" : "Select All") {
+                    let newValue = !allEnabled
+                    for i in contactManager.contactLists[contactManager.selectedListIndex].contacts.indices {
+                        let id = contactManager.contactLists[contactManager.selectedListIndex].contacts[i].id
+                        if !syncedContactIDs.contains(id) {
+                            contactManager.contactLists[contactManager.selectedListIndex].contacts[i].calendarReminderEnabled = newValue
+                        }
+                    }
+                    contactManager.saveContactLists()
+                }
+                .font(.caption)
+                .foregroundColor(.blue)
+                .buttonStyle(PlainButtonStyle())
+            }
+
+            // Apply button
+            Button(action: { applyCalendarChanges() }) {
+                if isApplyingCalendar {
+                    ProgressView().scaleEffect(0.7).frame(width: 72, height: 30)
+                } else {
+                    Text(hasPendingChanges ? "Apply" : "Up to Date")
+                        .font(.subheadline).fontWeight(.medium)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(Capsule().fill(hasPendingChanges ? Color.green : Color.secondary.opacity(0.5)))
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
+            .disabled(!hasPendingChanges || isApplyingCalendar)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color.green.opacity(0.08))
+    }
+
+    private func enterCalendarMode() {
+        isCalendarMode = true
+        isCheckingCalendar = true
+        syncedContactIDs = []
+        markedForRemovalIDs = []
+        Task {
+            let ids = await checkSyncedContacts()
+            await MainActor.run {
+                syncedContactIDs = ids
+                isCheckingCalendar = false
+            }
+        }
+    }
+
+    private func checkSyncedContacts() async -> Set<UUID> {
+        guard let contacts = contactManager.currentList?.contacts, !contacts.isEmpty else { return [] }
+        let eventStore = EKEventStore()
+        guard let granted = try? await requestCalendarAccess(eventStore: eventStore), granted else { return [] }
+        guard let cal = eventStore.defaultCalendarForNewEvents else { return [] }
+        var synced = Set<UUID>()
+        for contact in contacts {
+            if await eventExists(for: contact, in: eventStore, calendar: cal) {
+                synced.insert(contact.id)
+            }
+        }
+        return synced
+    }
+
+    private func requestCalendarAccess(eventStore: EKEventStore) async throws -> Bool {
+        if #available(iOS 17.0, *) {
+            return try await eventStore.requestFullAccessToEvents()
+        } else {
+            return await withCheckedContinuation { cont in
+                eventStore.requestAccess(to: .event) { g, _ in cont.resume(returning: g) }
+            }
+        }
+    }
+
+    private func applyCalendarChanges() {
+        guard let contacts = contactManager.currentList?.contacts else { return }
+        let toAdd = contacts.filter { $0.calendarReminderEnabled && !syncedContactIDs.contains($0.id) }
+        let toRemove = contacts.filter { markedForRemovalIDs.contains($0.id) }
+        guard !toAdd.isEmpty || !toRemove.isEmpty else { return }
+        isApplyingCalendar = true
+        Task {
+            let eventStore = EKEventStore()
+            guard let granted = try? await requestCalendarAccess(eventStore: eventStore), granted else {
+                await MainActor.run { isApplyingCalendar = false; showingCalendarPermissionAlert = true }
+                return
+            }
+            if !toAdd.isEmpty { await createEvents(for: toAdd, using: eventStore) }
+            if !toRemove.isEmpty { await removeCalendarEvents(for: toRemove, using: eventStore) }
+            let ids = await checkSyncedContacts()
+            await MainActor.run {
+                syncedContactIDs = ids
+                markedForRemovalIDs = []
+                isApplyingCalendar = false
+            }
+        }
+    }
+
+    private func removeCalendarEvents(for contacts: [Contact], using eventStore: EKEventStore) async {
+        guard let cal = eventStore.defaultCalendarForNewEvents else { return }
+        let dateCalendar = Calendar.current
+        let currentYear = dateCalendar.component(.year, from: Date())
+        for contact in contacts {
+            let title = "🎂 \(contact.name)'s Birthday"
+            let components = dateCalendar.dateComponents([.month, .day], from: contact.birthday)
+            guard let start = dateCalendar.date(from: DateComponents(year: currentYear, month: components.month, day: components.day)),
+                  let end = dateCalendar.date(from: DateComponents(year: currentYear + 1, month: components.month, day: components.day))
+            else { continue }
+            let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: [cal])
+            let matches = eventStore.events(matching: predicate).filter { $0.title == title && $0.isAllDay }
+            for event in matches {
+                try? eventStore.remove(event, span: .futureEvents)
+            }
+        }
+    }
+
+    private var notificationModeBar: some View {
+        HStack(spacing: 12) {
+            Button(action: {
+                guard let list = contactManager.currentList else { return }
+                let allEnabled = list.contacts.allSatisfy { $0.notificationsEnabled }
+                for i in contactManager.contactLists[contactManager.selectedListIndex].contacts.indices {
+                    contactManager.contactLists[contactManager.selectedListIndex].contacts[i].notificationsEnabled = !allEnabled
+                }
+                contactManager.saveContactLists()
+            }) {
+                let allEnabled = contactManager.currentList?.contacts.allSatisfy { $0.notificationsEnabled } ?? false
+                Label(allEnabled ? "Disable All" : "Enable All",
+                      systemImage: allEnabled ? "bell.slash" : "bell.badge")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(Color.blue))
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            Spacer()
+
+            Button(action: { showingTimingSettings = true }) {
+                Image(systemName: "gear")
+                    .font(.title3)
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color.blue.opacity(0.08))
+    }
+
+    private var birthdayPillButton: some View {
         Group {
             if let birthdayContact = birthdayContactWithPhone {
                 Button(action: {
@@ -152,45 +353,196 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                sortPickerView
-                ContactListView(contactManager: contactManager, selectedContactForEdit: $selectedContactForEdit)
-                birthdayPillButton
+                if contactManager.isSpecialDatesSelected {
+                    SpecialDatesListView(contactManager: contactManager, selectedContactForEdit: $selectedContactForEdit)
+                } else {
+                    if isNotificationMode {
+                        notificationModeBar
+                    } else if isCalendarMode {
+                        calendarModeBar
+                    } else {
+                        sortPickerView
+                    }
+                    ContactListView(
+                        contactManager: contactManager,
+                        selectedContactForEdit: $selectedContactForEdit,
+                        isNotificationMode: isNotificationMode,
+                        isCalendarMode: isCalendarMode,
+                        syncedContactIDs: syncedContactIDs,
+                        markedForRemovalIDs: markedForRemovalIDs,
+                        onToggleCalendar: { contact in
+                            if syncedContactIDs.contains(contact.id) {
+                                if markedForRemovalIDs.contains(contact.id) {
+                                    markedForRemovalIDs.remove(contact.id)
+                                } else {
+                                    markedForRemovalIDs.insert(contact.id)
+                                }
+                            } else {
+                                guard let idx = contactManager.contactLists[contactManager.selectedListIndex]
+                                    .contacts.firstIndex(where: { $0.id == contact.id }) else { return }
+                                contactManager.contactLists[contactManager.selectedListIndex].contacts[idx].calendarReminderEnabled.toggle()
+                                contactManager.saveContactLists()
+                            }
+                        }
+                    )
+                    if !isNotificationMode && !isCalendarMode {
+                        birthdayPillButton
+                    }
+                }
                 ContactListTabView(contactManager: contactManager)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                // Check and schedule notifications when app becomes active (only if enabled)
+                if ContactManager.notificationsEnabled {
+                    NotificationManager.shared.checkAndScheduleNotifications(for: contactManager)
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        editingTitle = (contactManager.currentList?.title ?? "My Family")
-                        isEditingTitle = true
-                    }) {
-                        ZStack {
-                            Text(contactManager.currentList?.title ?? "My Family")
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                                .foregroundColor(.primary)
-                                .id(contactManager.currentList?.title ?? "My Family")
-                                .transition(.asymmetric(insertion: .opacity, removal: .identity))
+                    if contactManager.isSpecialDatesSelected {
+                        Text("Special Dates")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .foregroundColor(.primary)
+                    } else {
+                        Button(action: {
+                            editingTitle = (contactManager.currentList?.title ?? "My Family")
+                            isEditingTitle = true
+                        }) {
+                            ZStack {
+                                Text(contactManager.currentList?.title ?? "My Family")
+                                    .font(.largeTitle)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.primary)
+                                    .id(contactManager.currentList?.title ?? "My Family")
+                                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
+                            }
+                            .animation(.easeInOut(duration: 0.6), value: contactManager.currentList?.title)
                         }
-                        .animation(.easeInOut(duration: 0.6), value: contactManager.currentList?.title)
                     }
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 16) {
+                        // Plus — hidden in any mode but kept in layout to prevent icon shift
+                        Button(action: { showingContactPicker = true }) {
+                            Image(systemName: "plus")
+                                .font(.title2)
+                                .fontWeight(.medium)
+                        }
+                        .opacity(isNotificationMode || isCalendarMode ? 0 : 1)
+                        .allowsHitTesting(!isNotificationMode && !isCalendarMode)
+
+                        // Calendar mode toggle — same icon always, tinted blue when active
                         Button(action: {
-                            showingCalendarAlert = true
+                            if isCalendarMode {
+                                isCalendarMode = false
+                                syncedContactIDs = []
+                                markedForRemovalIDs = []
+                            } else {
+                                isNotificationMode = false
+                                enterCalendarMode()
+                            }
                         }) {
                             Image(systemName: "calendar.badge.plus")
                                 .font(.title2)
                                 .fontWeight(.medium)
+                                .foregroundColor(isCalendarMode ? .blue : .primary)
+                        }
+
+                        // Notification mode toggle — dimmed (not hidden) when in calendar mode
+                        if ContactManager.notificationsEnabled {
+                            Button(action: {
+                                guard !isCalendarMode else { return }
+                                if isNotificationMode {
+                                    isNotificationMode = false
+                                } else {
+                                    isNotificationMode = true
+                                }
+                            }) {
+                                Image(systemName: isNotificationMode ? "bell.fill" : "bell")
+                                    .font(.title2)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(
+                                        isCalendarMode ? .secondary.opacity(0.4) :
+                                        isNotificationMode ? .blue : .primary
+                                    )
+                            }
                         }
                         
-                        Button(action: {
-                            showingContactPicker = true
-                        }) {
-                            Image(systemName: "plus")
-                                .font(.title2)
-                                .fontWeight(.medium)
+                        // Notification buttons (only shown when notifications are enabled and dev mode is on)
+                        if ContactManager.notificationsEnabled && ContactManager.devModeEnabled {
+                            Button(action: {
+                                // Manually trigger notification scheduling for testing
+                                NotificationManager.shared.checkAndScheduleNotifications(for: contactManager)
+                            }) {
+                                Image(systemName: "bell")
+                                    .font(.title2)
+                                    .fontWeight(.medium)
+                            }
+                            
+                            Button(action: {
+                                // Test notification with first contact
+                                print("🔔 Bell badge button tapped")
+                                
+                                if let firstContact = contactManager.currentList?.contacts.first {
+                                    print("📱 Found contact: \(firstContact.name)")
+                                    NotificationManager.shared.scheduleTestNotification(for: firstContact)
+                                } else {
+                                    print("❌ No contacts found in current list")
+                                    // Create a test contact if none exist
+                                    let testContact = Contact(
+                                        name: "Test User",
+                                        firstName: "Test",
+                                        nickname: nil,
+                                        birthday: Date(),
+                                        photoFileName: nil,
+                                        phoneNumber: nil
+                                    )
+                                    print("🧪 Using test contact: \(testContact.name)")
+                                    NotificationManager.shared.scheduleTestNotification(for: testContact)
+                                }
+                            }) {
+                                Image(systemName: "bell.badge")
+                                    .font(.title2)
+                                    .fontWeight(.medium)
+                            }
+                            
+                            Button(action: {
+                                // Test immediate notification
+                                print("⚡ Immediate notification button tapped")
+                                
+                                if let firstContact = contactManager.currentList?.contacts.first {
+                                    print("📱 Found contact: \(firstContact.name)")
+                                    NotificationManager.shared.showImmediateTestNotification(for: firstContact)
+                                } else {
+                                    print("❌ No contacts found in current list")
+                                    // Create a test contact if none exist
+                                    let testContact = Contact(
+                                        name: "Test User",
+                                        firstName: "Test",
+                                        nickname: nil,
+                                        birthday: Date(),
+                                        photoFileName: nil,
+                                        phoneNumber: nil
+                                    )
+                                    print("🧪 Using test contact: \(testContact.name)")
+                                    NotificationManager.shared.showImmediateTestNotification(for: testContact)
+                                }
+                            }) {
+                                Image(systemName: "bolt.fill")
+                                    .font(.title2)
+                                    .fontWeight(.medium)
+                            }
+                            
+                            Button(action: {
+                                // Show notification permission modal
+                                showingNotificationPermission = true
+                            }) {
+                                Image(systemName: "bell.slash")
+                                    .font(.title2)
+                                    .fontWeight(.medium)
+                            }
                         }
                     }
                 }
@@ -200,6 +552,30 @@ struct ContentView: View {
             }
             .sheet(item: $selectedContactForEdit) { contact in
                 ContactEditView(contact: contact, contactManager: contactManager)
+            }
+            .sheet(isPresented: $showingTimingSettings) {
+                NotificationTimingSettingsView(isPresented: $showingTimingSettings)
+                    .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $showingNotificationPermission) {
+                if ContactManager.notificationsEnabled {
+                    NotificationPermissionView(
+                        isPresented: $showingNotificationPermission,
+                        onPermissionRequested: {
+                            Task {
+                                let granted = await NotificationManager.shared.requestNotificationPermission()
+                                if granted {
+                                    print("Notification permission granted")
+                                } else {
+                                    print("Notification permission denied")
+                                }
+                            }
+                        }
+                    )
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.hidden)
+                    .interactiveDismissDisabled()
+                }
             }
             .overlay(
                 Group {
@@ -444,7 +820,14 @@ struct ContentView: View {
 struct ContactListView: View {
     @ObservedObject var contactManager: ContactManager
     @Binding var selectedContactForEdit: Contact?
-    
+    var isNotificationMode: Bool = false
+    var isCalendarMode: Bool = false
+    var syncedContactIDs: Set<UUID> = []
+    var markedForRemovalIDs: Set<UUID> = []
+    var onToggleCalendar: ((Contact) -> Void)? = nil
+
+    private var isAnyMode: Bool { isNotificationMode || isCalendarMode }
+
     var body: some View {
         if let currentList = contactManager.currentList {
             if currentList.contacts.isEmpty {
@@ -458,12 +841,10 @@ struct ContactListView: View {
                                 endPoint: .bottom
                             )
                         )
-                    
                     Text("Build your Family")
                         .font(.title2)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
-                    
                     Text("Tap the + button to add contacts from your device")
                         .font(.body)
                         .foregroundColor(.secondary)
@@ -475,12 +856,32 @@ struct ContactListView: View {
             } else {
                 List {
                     ForEach(currentList.contacts) { contact in
-                        ContactRow(contact: contact) {
-                            selectedContactForEdit = contact
-                        }
+                        ContactRow(
+                            contact: contact,
+                            onTap: {
+                                if !isAnyMode { selectedContactForEdit = contact }
+                            },
+                            isNotificationMode: isNotificationMode,
+                            onToggleNotification: {
+                                guard let idx = contactManager.contactLists[contactManager.selectedListIndex]
+                                    .contacts.firstIndex(where: { $0.id == contact.id }) else { return }
+                                contactManager.contactLists[contactManager.selectedListIndex].contacts[idx].notificationsEnabled.toggle()
+                                contactManager.saveContactLists()
+                            },
+                            isCalendarMode: isCalendarMode,
+                            calendarStatus: {
+                                if syncedContactIDs.contains(contact.id) {
+                                    return markedForRemovalIDs.contains(contact.id) ? .markedForRemoval : .synced
+                                }
+                                return contact.calendarReminderEnabled ? .pending : .excluded
+                            }(),
+                            onToggleCalendar: {
+                                onToggleCalendar?(contact)
+                            }
+                        )
                         .transition(.asymmetric(insertion: .scale.combined(with: .opacity), removal: .scale.combined(with: .opacity)))
                     }
-                    .onDelete(perform: contactManager.deleteContact)
+                    .onDelete(perform: isAnyMode ? nil : contactManager.deleteContact)
                 }
                 .listStyle(PlainListStyle())
                 .animation(.easeInOut(duration: 0.5), value: currentList.contacts.map { $0.id })
