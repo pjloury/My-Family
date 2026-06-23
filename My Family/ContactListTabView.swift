@@ -74,7 +74,13 @@ struct ContactListTabView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(Array(contactManager.contactLists.enumerated()), id: \.element.id) { index, list in
-                        let truncatedTitle = String(list.title.prefix(12))
+                        let hasBirthdayToday = list.contacts.contains { contact in
+                            let cal = Calendar.current
+                            let today = Date()
+                            return cal.component(.month, from: contact.birthday) == cal.component(.month, from: today) &&
+                                   cal.component(.day, from: contact.birthday) == cal.component(.day, from: today)
+                        }
+                        let truncatedTitle = String(list.title.prefix(12)) + (hasBirthdayToday ? " 🎂" : "")
                         let isSelected = contactManager.selectedListIndex == index
                         let primaryColor = ContactManager.useFlatUIColors ? tabColors[index % tabColors.count] : .blue
                         let secondaryColor = ContactManager.useFlatUIColors ? primaryColor.opacity(0.3) : .blue.opacity(0.3)
