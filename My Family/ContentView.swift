@@ -350,9 +350,114 @@ struct ContentView: View {
         }
     }
     
+    // MARK: - Custom pill header
+
+    private var headerPill: some View {
+        HStack(spacing: 12) {
+            // Title — tappable unless viewing special dates
+            if contactManager.isSpecialDatesSelected {
+                Text("Special Dates")
+                    .font(.title2).fontWeight(.bold)
+                    .foregroundColor(.primary)
+            } else {
+                Button {
+                    editingTitle = contactManager.currentList?.title ?? "My Family"
+                    isEditingTitle = true
+                } label: {
+                    Text(contactManager.currentList?.title ?? "My Family")
+                        .font(.title2).fontWeight(.bold)
+                        .foregroundColor(.primary)
+                        .animation(.easeInOut(duration: 0.4), value: contactManager.currentList?.title)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer()
+
+            // Action buttons
+            HStack(spacing: 14) {
+                if !contactManager.isSpecialDatesSelected {
+                    // Plus
+                    Button { showingContactPicker = true } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .medium))
+                    }
+                    .opacity(isNotificationMode || isCalendarMode ? 0 : 1)
+                    .allowsHitTesting(!isNotificationMode && !isCalendarMode)
+
+                    // Calendar
+                    Button {
+                        if isCalendarMode {
+                            isCalendarMode = false
+                            syncedContactIDs = []
+                            markedForRemovalIDs = []
+                        } else {
+                            isNotificationMode = false
+                            enterCalendarMode()
+                        }
+                    } label: {
+                        Image(systemName: "calendar.badge.plus")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(isCalendarMode ? .blue : .primary)
+                    }
+
+                    // Bell
+                    if ContactManager.notificationsEnabled {
+                        Button {
+                            guard !isCalendarMode else { return }
+                            isNotificationMode.toggle()
+                        } label: {
+                            Image(systemName: isNotificationMode ? "bell.fill" : "bell")
+                                .font(.system(size: 17, weight: .medium))
+                                .foregroundColor(
+                                    isCalendarMode ? .secondary.opacity(0.4) :
+                                    isNotificationMode ? .blue : .primary
+                                )
+                        }
+                    }
+
+                    // Dev-mode buttons
+                    if ContactManager.notificationsEnabled && ContactManager.devModeEnabled {
+                        Button { NotificationManager.shared.checkAndScheduleNotifications(for: contactManager) } label: {
+                            Image(systemName: "bell").font(.system(size: 17, weight: .medium))
+                        }
+                        Button {
+                            let c = contactManager.currentList?.contacts.first ?? Contact(name: "Test User", firstName: "Test", nickname: nil, birthday: Date(), photoFileName: nil)
+                            NotificationManager.shared.scheduleTestNotification(for: c)
+                        } label: {
+                            Image(systemName: "bell.badge").font(.system(size: 17, weight: .medium))
+                        }
+                        Button {
+                            let c = contactManager.currentList?.contacts.first ?? Contact(name: "Test User", firstName: "Test", nickname: nil, birthday: Date(), photoFileName: nil)
+                            NotificationManager.shared.showImmediateTestNotification(for: c)
+                        } label: {
+                            Image(systemName: "bolt.fill").font(.system(size: 17, weight: .medium))
+                        }
+                        Button { showingNotificationPermission = true } label: {
+                            Image(systemName: "bell.slash").font(.system(size: 17, weight: .medium))
+                        }
+                    }
+                }
+            }
+            .foregroundColor(.primary)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.09), radius: 10, x: 0, y: 3)
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 6)
+    }
+
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
+                headerPill
+
                 if contactManager.isSpecialDatesSelected {
                     SpecialDatesListView(contactManager: contactManager, selectedContactForEdit: $selectedContactForEdit)
                 } else {
@@ -391,160 +496,10 @@ struct ContentView: View {
                 }
                 ContactListTabView(contactManager: contactManager)
             }
+            .navigationBarHidden(true)
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
-                // Check and schedule notifications when app becomes active (only if enabled)
                 if ContactManager.notificationsEnabled {
                     NotificationManager.shared.checkAndScheduleNotifications(for: contactManager)
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    if contactManager.isSpecialDatesSelected {
-                        Text("Special Dates")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(.primary)
-                    } else {
-                        Button(action: {
-                            editingTitle = (contactManager.currentList?.title ?? "My Family")
-                            isEditingTitle = true
-                        }) {
-                            ZStack {
-                                Text(contactManager.currentList?.title ?? "My Family")
-                                    .font(.largeTitle)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.primary)
-                                    .id(contactManager.currentList?.title ?? "My Family")
-                                    .transition(.asymmetric(insertion: .opacity, removal: .identity))
-                            }
-                            .animation(.easeInOut(duration: 0.6), value: contactManager.currentList?.title)
-                        }
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 16) {
-                        // Plus — hidden in any mode but kept in layout to prevent icon shift
-                        Button(action: { showingContactPicker = true }) {
-                            Image(systemName: "plus")
-                                .font(.title2)
-                                .fontWeight(.medium)
-                        }
-                        .opacity(isNotificationMode || isCalendarMode ? 0 : 1)
-                        .allowsHitTesting(!isNotificationMode && !isCalendarMode)
-
-                        // Calendar mode toggle — same icon always, tinted blue when active
-                        Button(action: {
-                            if isCalendarMode {
-                                isCalendarMode = false
-                                syncedContactIDs = []
-                                markedForRemovalIDs = []
-                            } else {
-                                isNotificationMode = false
-                                enterCalendarMode()
-                            }
-                        }) {
-                            Image(systemName: "calendar.badge.plus")
-                                .font(.title2)
-                                .fontWeight(.medium)
-                                .foregroundColor(isCalendarMode ? .blue : .primary)
-                        }
-
-                        // Notification mode toggle — dimmed (not hidden) when in calendar mode
-                        if ContactManager.notificationsEnabled {
-                            Button(action: {
-                                guard !isCalendarMode else { return }
-                                if isNotificationMode {
-                                    isNotificationMode = false
-                                } else {
-                                    isNotificationMode = true
-                                }
-                            }) {
-                                Image(systemName: isNotificationMode ? "bell.fill" : "bell")
-                                    .font(.title2)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(
-                                        isCalendarMode ? .secondary.opacity(0.4) :
-                                        isNotificationMode ? .blue : .primary
-                                    )
-                            }
-                        }
-                        
-                        // Notification buttons (only shown when notifications are enabled and dev mode is on)
-                        if ContactManager.notificationsEnabled && ContactManager.devModeEnabled {
-                            Button(action: {
-                                // Manually trigger notification scheduling for testing
-                                NotificationManager.shared.checkAndScheduleNotifications(for: contactManager)
-                            }) {
-                                Image(systemName: "bell")
-                                    .font(.title2)
-                                    .fontWeight(.medium)
-                            }
-                            
-                            Button(action: {
-                                // Test notification with first contact
-                                print("🔔 Bell badge button tapped")
-                                
-                                if let firstContact = contactManager.currentList?.contacts.first {
-                                    print("📱 Found contact: \(firstContact.name)")
-                                    NotificationManager.shared.scheduleTestNotification(for: firstContact)
-                                } else {
-                                    print("❌ No contacts found in current list")
-                                    // Create a test contact if none exist
-                                    let testContact = Contact(
-                                        name: "Test User",
-                                        firstName: "Test",
-                                        nickname: nil,
-                                        birthday: Date(),
-                                        photoFileName: nil,
-                                        phoneNumber: nil
-                                    )
-                                    print("🧪 Using test contact: \(testContact.name)")
-                                    NotificationManager.shared.scheduleTestNotification(for: testContact)
-                                }
-                            }) {
-                                Image(systemName: "bell.badge")
-                                    .font(.title2)
-                                    .fontWeight(.medium)
-                            }
-                            
-                            Button(action: {
-                                // Test immediate notification
-                                print("⚡ Immediate notification button tapped")
-                                
-                                if let firstContact = contactManager.currentList?.contacts.first {
-                                    print("📱 Found contact: \(firstContact.name)")
-                                    NotificationManager.shared.showImmediateTestNotification(for: firstContact)
-                                } else {
-                                    print("❌ No contacts found in current list")
-                                    // Create a test contact if none exist
-                                    let testContact = Contact(
-                                        name: "Test User",
-                                        firstName: "Test",
-                                        nickname: nil,
-                                        birthday: Date(),
-                                        photoFileName: nil,
-                                        phoneNumber: nil
-                                    )
-                                    print("🧪 Using test contact: \(testContact.name)")
-                                    NotificationManager.shared.showImmediateTestNotification(for: testContact)
-                                }
-                            }) {
-                                Image(systemName: "bolt.fill")
-                                    .font(.title2)
-                                    .fontWeight(.medium)
-                            }
-                            
-                            Button(action: {
-                                // Show notification permission modal
-                                showingNotificationPermission = true
-                            }) {
-                                Image(systemName: "bell.slash")
-                                    .font(.title2)
-                                    .fontWeight(.medium)
-                            }
-                        }
-                    }
                 }
             }
             .sheet(isPresented: $showingContactPicker) {
@@ -580,10 +535,12 @@ struct ContentView: View {
             .overlay(
                 Group {
                     if isEditingTitle {
-                        Color.black.opacity(0.3)
+                        Color.black.opacity(0.35)
                             .ignoresSafeArea()
                             .onTapGesture {
-                                isEditingTitle = false
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    isEditingTitle = false
+                                }
                             }
                         
                         VStack(spacing: 20) {
