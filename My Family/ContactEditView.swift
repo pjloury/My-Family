@@ -55,6 +55,7 @@ struct ContactEditView: View {
     
     var body: some View {
         NavigationView {
+            ScrollViewReader { proxy in
             Form {
                 Section("Contact Information") {
                     VStack(alignment: .leading, spacing: 8) {
@@ -86,54 +87,56 @@ struct ContactEditView: View {
                     }
                 }
                 
+                let relationSuggestions = relationQuery.isEmpty ? [] : Contact.suggestedRelations.filter {
+                    $0.localizedCaseInsensitiveContains(relationQuery) &&
+                    $0.localizedCaseInsensitiveCompare(relationQuery) != .orderedSame
+                }
+
                 Section("Relation") {
-                    VStack(alignment: .leading, spacing: 0) {
-                        TextField("e.g. Mother, Friend, Cousin…", text: $relationQuery)
-                            .focused($relationFieldFocused)
-                            .onChange(of: relationQuery) { _, newValue in
-                                relation = newValue
-                            }
-                            .submitLabel(.done)
-                            .onSubmit { relationFieldFocused = false }
-
-                        let suggestions = relationQuery.isEmpty ? [] : Contact.suggestedRelations.filter {
-                            $0.localizedCaseInsensitiveContains(relationQuery) && $0.localizedCaseInsensitiveCompare(relationQuery) != .orderedSame
+                    TextField("e.g. Mother, Friend, Cousin…", text: $relationQuery)
+                        .focused($relationFieldFocused)
+                        .onChange(of: relationQuery) { _, newValue in
+                            relation = newValue
                         }
-
-                        if !suggestions.isEmpty && relationFieldFocused {
-                            Divider().padding(.top, 8)
-                            ScrollView {
-                                VStack(alignment: .leading, spacing: 0) {
-                                    ForEach(suggestions, id: \.self) { suggestion in
-                                        Button {
-                                            relation = suggestion
-                                            relationQuery = suggestion
-                                            relationFieldFocused = false
-                                        } label: {
-                                            Text(suggestion)
-                                                .foregroundColor(.primary)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                                .padding(.vertical, 10)
-                                                .padding(.horizontal, 4)
-                                        }
-                                        .buttonStyle(.plain)
-                                        if suggestion != suggestions.last {
-                                            Divider()
-                                        }
-                                    }
+                        .submitLabel(.done)
+                        .onSubmit { relationFieldFocused = false }
+                        .onChange(of: relationFieldFocused) { _, focused in
+                            if focused {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                    withAnimation { proxy.scrollTo("relationSection", anchor: .top) }
                                 }
                             }
-                            .frame(maxHeight: 180)
                         }
 
-                        if !relation.isEmpty && !Contact.suggestedRelations.contains(where: { $0.localizedCaseInsensitiveCompare(relation) == .orderedSame }) {
-                            Text("Custom relation — tap a suggestion above or keep as typed.")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .padding(.top, 4)
+                    if relationFieldFocused && !relationSuggestions.isEmpty {
+                        ForEach(relationSuggestions, id: \.self) { suggestion in
+                            Button {
+                                relation = suggestion
+                                relationQuery = suggestion
+                                relationFieldFocused = false
+                            } label: {
+                                HStack {
+                                    Text(suggestion)
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                        .opacity(relation.localizedCaseInsensitiveCompare(suggestion) == .orderedSame ? 1 : 0)
+                                }
+                            }
                         }
                     }
+
+                    if !relation.isEmpty && !Contact.suggestedRelations.contains(where: {
+                        $0.localizedCaseInsensitiveCompare(relation) == .orderedSame
+                    }) && !relationFieldFocused {
+                        Label("Custom: \"\(relation)\"", systemImage: "pencil")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
+                .id("relationSection")
 
                 Section("Birthday") {
                     DatePicker("Birthday", selection: $editedBirthday, displayedComponents: .date)
@@ -336,6 +339,7 @@ struct ContactEditView: View {
                     }
                 }
             }
+        } // ScrollViewReader
         }
         .navigationViewStyle(.stack)
     }
