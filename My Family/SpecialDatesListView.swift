@@ -75,9 +75,16 @@ struct SpecialDateRow: View {
 
             // Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(contact.name)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                HStack(spacing: 4) {
+                    Text(contact.name)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    if years > 0 {
+                        Text("• \(years)")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+                }
                 HStack(spacing: 6) {
                     Text(formattedDate(specialDate.date))
                         .font(.caption)
