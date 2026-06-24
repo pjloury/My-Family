@@ -33,8 +33,7 @@ struct ContactRow: View {
     }
     
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
+        HStack(spacing: 12) {
                 // Contact Photo
                 ZStack(alignment: .bottomTrailing) {
                     if let photo = contact.photo {
@@ -233,9 +232,9 @@ struct ContactRow: View {
                         }
                     }
                 }
-            }
         }
-        .buttonStyle(PlainButtonStyle())
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
         .id(contact.id) // Force refresh when contact changes
         .onAppear {
             if isBirthdayToday {
