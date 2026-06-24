@@ -442,14 +442,14 @@ struct ContentView: View {
             }
             .foregroundColor(.primary)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 12)
         .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Color(.systemBackground))
                 .shadow(color: .black.opacity(0.09), radius: 10, x: 0, y: 3)
         )
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 4)
         .padding(.top, 12)
         .padding(.bottom, 6)
     }
