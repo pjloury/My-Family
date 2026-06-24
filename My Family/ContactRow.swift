@@ -44,7 +44,7 @@ struct ContactRow: View {
                             .frame(width: 50, height: 50)
                             .clipShape(Circle())
                             .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
-                            .grayscale(contact.isDeceased ? 0.8 : 0)
+                            .grayscale(0)
                             .opacity(contact.isDeceased ? 0.75 : 1)
                     } else {
                         Image(systemName: "person.circle.fill")
@@ -78,15 +78,6 @@ struct ContactRow: View {
                         }
                     }
                     
-                    if let relation = contact.relation {
-                        Text(relation.displayName)
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.secondary.opacity(0.12)))
-                    }
 
                     HStack(spacing: 4) {
                         Button(action: {
