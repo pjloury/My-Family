@@ -47,13 +47,25 @@ struct Contact: Identifiable, Codable, Equatable {
     var calendarReminderEnabled: Bool = true
     var deceasedDate: Date?
     var specialDates: [SpecialDate] = []
+    var relation: String?
+
+    static let suggestedRelations: [String] = [
+        "Mother", "Father", "Sister", "Brother",
+        "Grandmother", "Grandfather", "Great-Grandmother", "Great-Grandfather",
+        "Aunt", "Uncle", "Cousin", "Niece", "Nephew",
+        "Daughter", "Son",
+        "Wife", "Husband", "Girlfriend", "Boyfriend", "Partner",
+        "Friend", "Best Friend",
+        "Mother-in-Law", "Father-in-Law", "Sister-in-Law", "Brother-in-Law",
+        "Stepmom", "Stepdad", "Stepsibling",
+    ]
 
     enum CodingKeys: String, CodingKey {
         case id, name, firstName, nickname, birthday, photoFileName, phoneNumber
-        case notificationsEnabled, calendarReminderEnabled, deceasedDate, specialDates
+        case notificationsEnabled, calendarReminderEnabled, deceasedDate, specialDates, relation
     }
 
-    init(name: String, firstName: String, nickname: String?, birthday: Date, photoFileName: String?, phoneNumber: String? = nil, notificationsEnabled: Bool = true, calendarReminderEnabled: Bool = true, deceasedDate: Date? = nil, specialDates: [SpecialDate] = []) {
+    init(name: String, firstName: String, nickname: String?, birthday: Date, photoFileName: String?, phoneNumber: String? = nil, notificationsEnabled: Bool = true, calendarReminderEnabled: Bool = true, deceasedDate: Date? = nil, specialDates: [SpecialDate] = [], relation: String? = nil) {
         self.name = name
         self.firstName = firstName
         self.nickname = nickname
@@ -64,6 +76,7 @@ struct Contact: Identifiable, Codable, Equatable {
         self.calendarReminderEnabled = calendarReminderEnabled
         self.deceasedDate = deceasedDate
         self.specialDates = specialDates
+        self.relation = relation
     }
 
     init(from decoder: Decoder) throws {
@@ -79,6 +92,7 @@ struct Contact: Identifiable, Codable, Equatable {
         calendarReminderEnabled = try c.decodeIfPresent(Bool.self, forKey: .calendarReminderEnabled) ?? true
         deceasedDate = try c.decodeIfPresent(Date.self, forKey: .deceasedDate)
         specialDates = try c.decodeIfPresent([SpecialDate].self, forKey: .specialDates) ?? []
+        relation = try c.decodeIfPresent(String.self, forKey: .relation)
     }
 
     var displayName: String {

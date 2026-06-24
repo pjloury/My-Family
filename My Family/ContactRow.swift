@@ -78,6 +78,16 @@ struct ContactRow: View {
                         }
                     }
                     
+                    if let relation = contact.relation {
+                        Text(relation)
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                    }
+
                     HStack(spacing: 4) {
                         Button(action: {
                             showingBirthdayPopup = true

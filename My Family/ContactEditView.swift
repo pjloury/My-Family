@@ -19,6 +19,9 @@ struct ContactEditView: View {
     @State private var deceasedDate: Date
     @State private var showingDeceasedDatePicker = false
     @State private var specialDates: [SpecialDate]
+    @State private var relation: String
+    @State private var relationQuery: String
+    @FocusState private var relationFieldFocused: Bool
 
     init(contact: Contact, contactManager: ContactManager) {
         self.contact = contact
@@ -36,6 +39,8 @@ struct ContactEditView: View {
         self._isDeceased = State(initialValue: contact.deceasedDate != nil)
         self._deceasedDate = State(initialValue: contact.deceasedDate ?? Date())
         self._specialDates = State(initialValue: contact.specialDates)
+        self._relation = State(initialValue: contact.relation ?? "")
+        self._relationQuery = State(initialValue: contact.relation ?? "")
         
         // Load existing photo data if available
         if let photoFileName = contact.photoFileName {
@@ -81,6 +86,55 @@ struct ContactEditView: View {
                     }
                 }
                 
+                Section("Relation") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        TextField("e.g. Mother, Friend, Cousin…", text: $relationQuery)
+                            .focused($relationFieldFocused)
+                            .onChange(of: relationQuery) { _, newValue in
+                                relation = newValue
+                            }
+                            .submitLabel(.done)
+                            .onSubmit { relationFieldFocused = false }
+
+                        let suggestions = relationQuery.isEmpty ? [] : Contact.suggestedRelations.filter {
+                            $0.localizedCaseInsensitiveContains(relationQuery) && $0.localizedCaseInsensitiveCompare(relationQuery) != .orderedSame
+                        }
+
+                        if !suggestions.isEmpty && relationFieldFocused {
+                            Divider().padding(.top, 8)
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 0) {
+                                    ForEach(suggestions, id: \.self) { suggestion in
+                                        Button {
+                                            relation = suggestion
+                                            relationQuery = suggestion
+                                            relationFieldFocused = false
+                                        } label: {
+                                            Text(suggestion)
+                                                .foregroundColor(.primary)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .padding(.vertical, 10)
+                                                .padding(.horizontal, 4)
+                                        }
+                                        .buttonStyle(.plain)
+                                        if suggestion != suggestions.last {
+                                            Divider()
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(maxHeight: 180)
+                        }
+
+                        if !relation.isEmpty && !Contact.suggestedRelations.contains(where: { $0.localizedCaseInsensitiveCompare(relation) == .orderedSame }) {
+                            Text("Custom relation — tap a suggestion above or keep as typed.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 4)
+                        }
+                    }
+                }
+
                 Section("Birthday") {
                     DatePicker("Birthday", selection: $editedBirthday, displayedComponents: .date)
                         .datePickerStyle(WheelDatePickerStyle())
@@ -490,7 +544,8 @@ struct ContactEditView: View {
             photoData: photoDataToSave,
             phoneNumber: editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
             deceasedDate: isDeceased ? deceasedDate : nil,
-            specialDates: specialDates
+            specialDates: specialDates,
+            relation: relation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : relation.trimmingCharacters(in: .whitespacesAndNewlines)
         )
         
         // Save changes back to iOS Contacts
