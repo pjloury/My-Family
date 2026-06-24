@@ -45,12 +45,12 @@ struct ContactRow: View {
                             .clipShape(Circle())
                             .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
                             .grayscale(0)
-                            .opacity(contact.isDeceased ? 0.75 : 1)
+                            .opacity(1)
                     } else {
                         Image(systemName: "person.circle.fill")
                             .resizable()
                             .frame(width: 50, height: 50)
-                            .foregroundColor(contact.isDeceased ? .gray.opacity(0.5) : .gray)
+                            .foregroundColor(.gray)
                     }
                     if contact.isDeceased {
                         Text("🕊")

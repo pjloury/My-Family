@@ -12,6 +12,7 @@ struct ContentView: View {
     @StateObject var contactManager = ContactManager()
     @State private var showingContactPicker = false
     @State private var selectedContactForEdit: Contact?
+    @State private var selectedContactForDetail: Contact?
     @State private var isEditingTitle = false
     @State private var editingTitle = ""
     @FocusState private var isTitleFieldFocused: Bool
@@ -471,6 +472,7 @@ struct ContentView: View {
                     ContactListView(
                         contactManager: contactManager,
                         selectedContactForEdit: $selectedContactForEdit,
+                        selectedContactForDetail: $selectedContactForDetail,
                         isNotificationMode: isNotificationMode,
                         isCalendarMode: isCalendarMode,
                         syncedContactIDs: syncedContactIDs,
@@ -507,6 +509,9 @@ struct ContentView: View {
             }
             .sheet(item: $selectedContactForEdit) { contact in
                 ContactEditView(contact: contact, contactManager: contactManager)
+            }
+            .sheet(item: $selectedContactForDetail) { contact in
+                ContactDetailView(contact: contact, contactManager: contactManager)
             }
             .sheet(isPresented: $showingTimingSettings) {
                 NotificationTimingSettingsView(isPresented: $showingTimingSettings)
@@ -777,6 +782,7 @@ struct ContentView: View {
 struct ContactListView: View {
     @ObservedObject var contactManager: ContactManager
     @Binding var selectedContactForEdit: Contact?
+    @Binding var selectedContactForDetail: Contact?
     var isNotificationMode: Bool = false
     var isCalendarMode: Bool = false
     var syncedContactIDs: Set<UUID> = []
@@ -816,7 +822,7 @@ struct ContactListView: View {
                         ContactRow(
                             contact: contact,
                             onTap: {
-                                if !isAnyMode { selectedContactForEdit = contact }
+                                if !isAnyMode { selectedContactForDetail = contact }
                             },
                             isNotificationMode: isNotificationMode,
                             onToggleNotification: {

@@ -3,12 +3,12 @@ import SwiftUI
 struct HoroscopePopupView: View {
     let zodiacSign: String
     let contactName: String
+    var embedded: Bool = false
     @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
+
+    private var content: some View {
+        ScrollView {
+            VStack(spacing: 24) {
                     // Header
                     VStack(spacing: 16) {
                         Text(zodiacSign)
@@ -117,18 +117,25 @@ struct HoroscopePopupView: View {
                     .padding(.horizontal)
                 }
                 .padding(.bottom, 40)
-            }
-            .navigationTitle("Zodiac Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
         }
-        .navigationViewStyle(.stack)
+    }
+
+    var body: some View {
+        if embedded {
+            content
+        } else {
+            NavigationView {
+                content
+                    .navigationTitle("Zodiac Profile")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") { dismiss() }
+                        }
+                    }
+            }
+            .navigationViewStyle(.stack)
+        }
     }
     
     private func getZodiacName() -> String {
