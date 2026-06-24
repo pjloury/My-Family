@@ -7,6 +7,8 @@ struct ContactEditView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var contactManager: ContactManager
     let contact: Contact
+    var embedded: Bool = false
+    @Binding var shouldSave: Bool
     
     @State private var editedFirstName: String
     @State private var editedLastName: String
@@ -23,9 +25,11 @@ struct ContactEditView: View {
     @State private var relationQuery: String
     @FocusState private var relationFieldFocused: Bool
 
-    init(contact: Contact, contactManager: ContactManager) {
+    init(contact: Contact, contactManager: ContactManager, embedded: Bool = false, shouldSave: Binding<Bool> = .constant(false)) {
         self.contact = contact
         self.contactManager = contactManager
+        self.embedded = embedded
+        self._shouldSave = shouldSave
 
         // Parse the full name into first and last name
         let nameParts = contact.name.split(separator: " ", maxSplits: 1)
@@ -54,8 +58,32 @@ struct ContactEditView: View {
     }
     
     var body: some View {
-        NavigationView {
-            ScrollViewReader { proxy in
+        if embedded {
+            formContent
+        } else {
+            NavigationView {
+                formContent
+                    .navigationTitle("Edit Contact")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Cancel") { dismiss() }
+                        }
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Save") {
+                                saveContact()
+                                dismiss()
+                            }
+                            .disabled(fullName.isEmpty)
+                        }
+                    }
+            }
+            .navigationViewStyle(.stack)
+        }
+    }
+
+    private var formContent: some View {
+        ScrollViewReader { proxy in
             Form {
                 Section("Contact Information") {
                     VStack(alignment: .leading, spacing: 8) {
@@ -318,41 +346,27 @@ struct ContactEditView: View {
                     .padding(.vertical, 8)
                 }
             }
-            .navigationTitle("Edit Contact")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        saveContact()
-                        dismiss()
-                    }
-                    .disabled(fullName.isEmpty)
-                }
-            }
             .photosPicker(isPresented: $showingPhotoPicker, selection: $selectedPhoto, matching: .images)
-            .onChange(of: selectedPhoto) { oldValue, newValue in
+            .onChange(of: selectedPhoto) { _, _ in
                 if let selectedPhoto = selectedPhoto {
                     selectedPhoto.loadTransferable(type: Data.self) { result in
-                        switch result {
-                        case .success(let data):
-                            if let data = data {
-                                editedPhotoData = data
-                            }
-                        case .failure(let error):
-                            print("Failed to load photo: \(error)")
+                        if case .success(let data) = result, let data = data {
+                            editedPhotoData = data
                         }
                     }
                 }
             }
+            .onChange(of: shouldSave) { _, newValue in
+                if newValue {
+                    saveContact()
+                    shouldSave = false
+                }
+            }
         } // ScrollViewReader
-        }
-        .navigationViewStyle(.stack)
+    }
+
+    func save() {
+        saveContact()
     }
     
     private var fullName: String {

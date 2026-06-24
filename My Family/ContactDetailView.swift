@@ -27,7 +27,7 @@ struct ContactDetailView: View {
     @ObservedObject var contactManager: ContactManager
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTab: DetailTab = .profile
-    @State private var showingEdit = false
+    @State private var saveNow = false
 
     var body: some View {
         NavigationView {
@@ -68,7 +68,7 @@ struct ContactDetailView: View {
 
                 // Paged content
                 TabView(selection: $selectedTab) {
-                    profilePage
+                    ContactEditView(contact: contact, contactManager: contactManager, embedded: true, shouldSave: $saveNow)
                         .tag(DetailTab.profile)
 
                     BirthdayPopupView(birthday: contact.birthday, contactName: contact.name, embedded: true)
@@ -86,137 +86,17 @@ struct ContactDetailView: View {
             .navigationTitle(contact.firstName)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Done") { dismiss() }
-                }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Edit") { showingEdit = true }
+                    Button("Done") {
+                        saveNow = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { dismiss() }
+                    }
                 }
             }
         }
         .navigationViewStyle(.stack)
-        .sheet(isPresented: $showingEdit) {
-            ContactEditView(contact: contact, contactManager: contactManager)
-        }
     }
 
-    private var profilePage: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                // Photo + name
-                VStack(spacing: 12) {
-                    ZStack(alignment: .bottomTrailing) {
-                        if let photo = contact.photo {
-                            Image(uiImage: photo)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 100, height: 100)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
-                        } else {
-                            Image(systemName: "person.circle.fill")
-                                .resizable()
-                                .frame(width: 100, height: 100)
-                                .foregroundColor(.gray)
-                        }
-                        if contact.isDeceased {
-                            Text("🕊")
-                                .font(.system(size: 22))
-                                .offset(x: 4, y: 4)
-                        }
-                    }
-
-                    Text(contact.name)
-                        .font(.title2)
-                        .fontWeight(.bold)
-
-                    if let relation = contact.relation {
-                        Text(relation.displayName)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(Capsule().fill(Color.secondary.opacity(0.12)))
-                    }
-                }
-                .padding(.top, 24)
-
-                // Stats
-                HStack(spacing: 0) {
-                    statCell(title: contact.isDeceased ? "Age at Death" : "Age",
-                             value: contact.isDeceased
-                                ? (contact.ageAtDeath.map { "\($0)" } ?? "—")
-                                : "\(contact.age)")
-                    Divider().frame(height: 40)
-                    statCell(title: "Birthday", value: contact.birthdayMonthDay)
-                    Divider().frame(height: 40)
-                    statCell(title: "Next", value: contact.monthsUntilBirthday)
-                }
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                .padding(.horizontal)
-
-                // Signs row
-                HStack(spacing: 0) {
-                    statCell(title: "Western", value: contact.zodiacSign)
-                    Divider().frame(height: 40)
-                    statCell(title: "Lunar", value: contact.chineseZodiacAnimal)
-                    if let grade = contact.gradeLevelEmoji {
-                        Divider().frame(height: 40)
-                        statCell(title: "Grade", value: grade)
-                    }
-                }
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                .padding(.horizontal)
-
-                // Special dates
-                if !contact.specialDates.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Special Dates")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        ForEach(contact.specialDates) { sd in
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(sd.displayLabel)
-                                        .font(.subheadline)
-                                    Text(formattedDate(sd.date))
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                Spacer()
-                                Text(sd.monthsUntilNext)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            .padding(.horizontal)
-                        }
-                    }
-                }
-            }
-            .padding(.bottom, 40)
-        }
-    }
-
-    private func statCell(title: String, value: String) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.title3)
-                .fontWeight(.semibold)
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-    }
-
-    private func formattedDate(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "MMMM d"
-        return f.string(from: date)
-    }
 }
 
 #Preview {
