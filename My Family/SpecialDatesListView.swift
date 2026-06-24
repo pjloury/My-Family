@@ -42,7 +42,14 @@ struct SpecialDateRow: View {
 
     private var isToday: Bool { specialDate.daysUntilNext == 0 }
     private var years: Int { specialDate.yearsElapsed }
-    private var nextYears: Int { years + (isToday ? 0 : 1) }
+    // years elapsed when today, years+1 when upcoming
+    private var anniversaryNumber: Int { isToday ? years : years + 1 }
+
+    private func ordinal(_ n: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .ordinal
+        return formatter.string(from: NSNumber(value: n)) ?? "\(n)th"
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -68,16 +75,9 @@ struct SpecialDateRow: View {
 
             // Info
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 4) {
-                    Text(contact.name)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    if years > 0 {
-                        Text("• \(isToday ? years : nextYears)yr")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                    }
-                }
+                Text(contact.name)
+                    .font(.headline)
+                    .foregroundColor(.primary)
                 HStack(spacing: 6) {
                     Text(formattedDate(specialDate.date))
                         .font(.caption)
@@ -103,7 +103,7 @@ struct SpecialDateRow: View {
                             .easeInOut(duration: 1.2).repeatForever(autoreverses: true).delay(1.0),
                             value: isAnimating
                         )
-                    Text("\(years)yr anniversary!")
+                    Text("\(ordinal(anniversaryNumber)) anniversary!")
                         .font(.caption)
                         .fontWeight(.bold)
                         .foregroundColor(.purple)
@@ -112,7 +112,7 @@ struct SpecialDateRow: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
-                    Text("til \(nextYears)yr anniversary")
+                    Text("til \(ordinal(anniversaryNumber)) anniversary")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
