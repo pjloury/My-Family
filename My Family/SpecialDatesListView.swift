@@ -38,85 +38,106 @@ struct SpecialDateRow: View {
     let specialDate: SpecialDate
     let onTap: () -> Void
 
+    @State private var isAnimating = false
+
     private var isToday: Bool { specialDate.daysUntilNext == 0 }
+    private var years: Int { specialDate.yearsElapsed }
+    private var nextYears: Int { years + (isToday ? 0 : 1) }
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
-                // Avatar
-                ZStack(alignment: .bottomTrailing) {
-                    if let photo = contact.photo {
-                        Image(uiImage: photo)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 50, height: 50)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
-                            .grayscale(contact.isDeceased ? 0.8 : 0)
-                            .opacity(contact.isDeceased ? 0.75 : 1)
-                    } else {
-                        Image(systemName: "person.circle.fill")
-                            .resizable()
-                            .frame(width: 50, height: 50)
-                            .foregroundColor(.gray)
-                    }
-                    if contact.isDeceased {
-                        Text("🕊").font(.system(size: 14)).offset(x: 4, y: 4)
-                    }
+        HStack(spacing: 12) {
+            // Avatar
+            ZStack(alignment: .bottomTrailing) {
+                if let photo = contact.photo {
+                    Image(uiImage: photo)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.gray.opacity(0.3), lineWidth: 1))
+                } else {
+                    Image(systemName: "person.circle.fill")
+                        .resizable()
+                        .frame(width: 50, height: 50)
+                        .foregroundColor(.gray)
                 }
+                if contact.isDeceased {
+                    Text("🕊").font(.system(size: 14)).offset(x: 4, y: 4)
+                }
+            }
 
-                // Info
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(contact.name)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    HStack(spacing: 4) {
-                        Text(specialDate.displayLabel)
-                            .font(.caption)
-                            .foregroundColor(.purple)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.purple.opacity(0.12)))
+            // Info
+            VStack(alignment: .leading, spacing: 4) {
+                Text(contact.name)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                HStack(spacing: 4) {
+                    Text(specialDate.displayLabel)
+                        .font(.caption)
+                        .foregroundColor(.purple)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.purple.opacity(0.12)))
+                    Text("·")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(formattedDate(specialDate.date))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if years > 0 {
                         Text("·")
                             .font(.caption)
                             .foregroundColor(.secondary)
-                        Text(formattedDate(specialDate.date))
+                        Text("\(isToday ? years : nextYears)yr")
                             .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-
-                Spacer()
-
-                // Countdown
-                VStack(alignment: .trailing, spacing: 2) {
-                    if isToday {
-                        Text("🎉")
-                            .font(.title2)
-                        Text("TODAY")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundColor(.purple)
-                    } else {
-                        Text(specialDate.monthsUntilNext)
-                            .font(.subheadline)
                             .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                        Text("til \(specialDate.displayLabel.lowercased())")
-                            .font(.caption)
                             .foregroundColor(.secondary)
-                            .lineLimit(1)
                     }
                 }
             }
-            .padding(.vertical, 4)
+
+            Spacer()
+
+            // Countdown / anniversary celebration
+            VStack(alignment: .trailing, spacing: 2) {
+                if isToday {
+                    Text("🎉")
+                        .font(.title2)
+                        .scaleEffect(isAnimating ? 1.15 : 0.9)
+                        .animation(
+                            .easeInOut(duration: 1.2).repeatForever(autoreverses: true).delay(1.0),
+                            value: isAnimating
+                        )
+                    Text("\(years)yr anniversary!")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.purple)
+                } else {
+                    Text(specialDate.monthsUntilNext)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    Text("til \(nextYears)yr anniversary")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+            }
         }
-        .buttonStyle(PlainButtonStyle())
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+        .padding(.vertical, 4)
+        .onAppear {
+            if isToday {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { isAnimating = true }
+            }
+        }
+        .onDisappear { isAnimating = false }
     }
 
     private func formattedDate(_ date: Date) -> String {
         let f = DateFormatter()
-        f.dateFormat = "MMM d"
+        f.dateFormat = "MMM d, yyyy"
         return f.string(from: date)
     }
 }

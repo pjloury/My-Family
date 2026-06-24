@@ -20,6 +20,10 @@ struct SpecialDate: Identifiable, Codable, Equatable {
         return calendar.dateComponents([.day], from: today, to: next).day ?? 0
     }
 
+    var yearsElapsed: Int {
+        Calendar.current.dateComponents([.year], from: date, to: Date()).year ?? 0
+    }
+
     var monthsUntilNext: String {
         let days = daysUntilNext
         if days == 0 { return "Today" }
