@@ -71,32 +71,41 @@ struct ContentView: View {
             Text("Sort by:")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            
-            Picker("Sort", selection: Binding(
-                get: { contactManager.currentList?.selectedSortOption ?? .name },
-                set: { contactManager.updateSortOption($0) }
-            )) {
+
+            Menu {
                 ForEach(SortOption.allCases, id: \.self) { option in
-                    Text(option.displayName).tag(option)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            contactManager.updateSortOption(option)
+                            contactManager.sortContacts()
+                        }
+                    } label: {
+                        HStack {
+                            Text(option.displayName)
+                            if contactManager.currentList?.selectedSortOption == option {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
                 }
-            }
-            .pickerStyle(MenuPickerStyle())
-            .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
-            .layoutPriority(1)
-            .onChange(of: contactManager.currentList?.selectedSortOption) { oldValue, newValue in
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    contactManager.sortContacts()
+            } label: {
+                HStack(spacing: 4) {
+                    Text(contactManager.currentList?.selectedSortOption.displayName ?? "Name")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
                 }
+                .foregroundColor(.blue)
             }
-            
+
             Spacer()
-            
-            Button(action: {
+
+            Button {
                 withAnimation(.easeInOut(duration: 0.5)) {
                     contactManager.toggleSortDirection()
                 }
-            }) {
+            } label: {
                 Text(contactManager.currentList?.sortDirection.arrow ?? "⬆️")
                     .font(.title2)
                     .fontWeight(.medium)

@@ -81,7 +81,7 @@ struct ContactListTabView: View {
                                    cal.component(.day, from: contact.birthday) == cal.component(.day, from: today)
                         }
                         let truncatedTitle = String(list.title.prefix(12)) + (hasBirthdayToday ? " 🎂" : "")
-                        let isSelected = contactManager.selectedListIndex == index
+                        let isSelected = contactManager.selectedListIndex == index && !contactManager.isSpecialDatesSelected
                         let primaryColor = ContactManager.useFlatUIColors ? tabColors[index % tabColors.count] : .blue
                         let secondaryColor = ContactManager.useFlatUIColors ? primaryColor.opacity(0.3) : .blue.opacity(0.3)
                         
