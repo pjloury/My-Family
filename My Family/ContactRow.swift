@@ -79,7 +79,7 @@ struct ContactRow: View {
                     }
                     
                     if let relation = contact.relation {
-                        Text(relation)
+                        Text(relation.displayName)
                             .font(.caption2)
                             .fontWeight(.medium)
                             .foregroundColor(.secondary)

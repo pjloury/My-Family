@@ -433,7 +433,7 @@ class ContactManager: ObservableObject {
         return fetchedContacts
     }
     
-    func updateContact(contactId: UUID, name: String, firstName: String, birthday: Date, photoData: Data?, phoneNumber: String?, deceasedDate: Date? = nil, specialDates: [SpecialDate] = [], relation: String? = nil) {
+    func updateContact(contactId: UUID, name: String, firstName: String, birthday: Date, photoData: Data?, phoneNumber: String?, deceasedDate: Date? = nil, specialDates: [SpecialDate] = [], relation: Relation? = nil) {
         guard let listIndex = contactLists.firstIndex(where: { $0.id == (currentList?.id ?? UUID()) }),
               let contactIndex = contactLists[listIndex].contacts.firstIndex(where: { $0.id == contactId }) else {
             return

@@ -35,6 +35,45 @@ struct SpecialDate: Identifiable, Codable, Equatable {
     }
 }
 
+enum Relation: String, CaseIterable, Codable, Equatable {
+    case mother = "Mother"
+    case father = "Father"
+    case sister = "Sister"
+    case brother = "Brother"
+    case grandmother = "Grandmother"
+    case grandfather = "Grandfather"
+    case greatGrandmother = "Great-Grandmother"
+    case greatGrandfather = "Great-Grandfather"
+    case aunt = "Aunt"
+    case uncle = "Uncle"
+    case cousin = "Cousin"
+    case niece = "Niece"
+    case nephew = "Nephew"
+    case daughter = "Daughter"
+    case son = "Son"
+    case wife = "Wife"
+    case husband = "Husband"
+    case girlfriend = "Girlfriend"
+    case boyfriend = "Boyfriend"
+    case partner = "Partner"
+    case friend = "Friend"
+    case bestFriend = "Best Friend"
+    case motherInLaw = "Mother-in-Law"
+    case fatherInLaw = "Father-in-Law"
+    case sisterInLaw = "Sister-in-Law"
+    case brotherInLaw = "Brother-in-Law"
+    case stepmom = "Stepmom"
+    case stepdad = "Stepdad"
+    case stepsibling = "Stepsibling"
+    case other = "Other"
+
+    var displayName: String { rawValue }
+
+    static func from(string: String) -> Relation? {
+        Relation.allCases.first { $0.rawValue.localizedCaseInsensitiveCompare(string) == .orderedSame }
+    }
+}
+
 struct Contact: Identifiable, Codable, Equatable {
     var id = UUID()
     var name: String
@@ -47,25 +86,14 @@ struct Contact: Identifiable, Codable, Equatable {
     var calendarReminderEnabled: Bool = true
     var deceasedDate: Date?
     var specialDates: [SpecialDate] = []
-    var relation: String?
-
-    static let suggestedRelations: [String] = [
-        "Mother", "Father", "Sister", "Brother",
-        "Grandmother", "Grandfather", "Great-Grandmother", "Great-Grandfather",
-        "Aunt", "Uncle", "Cousin", "Niece", "Nephew",
-        "Daughter", "Son",
-        "Wife", "Husband", "Girlfriend", "Boyfriend", "Partner",
-        "Friend", "Best Friend",
-        "Mother-in-Law", "Father-in-Law", "Sister-in-Law", "Brother-in-Law",
-        "Stepmom", "Stepdad", "Stepsibling",
-    ]
+    var relation: Relation?
 
     enum CodingKeys: String, CodingKey {
         case id, name, firstName, nickname, birthday, photoFileName, phoneNumber
         case notificationsEnabled, calendarReminderEnabled, deceasedDate, specialDates, relation
     }
 
-    init(name: String, firstName: String, nickname: String?, birthday: Date, photoFileName: String?, phoneNumber: String? = nil, notificationsEnabled: Bool = true, calendarReminderEnabled: Bool = true, deceasedDate: Date? = nil, specialDates: [SpecialDate] = [], relation: String? = nil) {
+    init(name: String, firstName: String, nickname: String?, birthday: Date, photoFileName: String?, phoneNumber: String? = nil, notificationsEnabled: Bool = true, calendarReminderEnabled: Bool = true, deceasedDate: Date? = nil, specialDates: [SpecialDate] = [], relation: Relation? = nil) {
         self.name = name
         self.firstName = firstName
         self.nickname = nickname
@@ -92,7 +120,14 @@ struct Contact: Identifiable, Codable, Equatable {
         calendarReminderEnabled = try c.decodeIfPresent(Bool.self, forKey: .calendarReminderEnabled) ?? true
         deceasedDate = try c.decodeIfPresent(Date.self, forKey: .deceasedDate)
         specialDates = try c.decodeIfPresent([SpecialDate].self, forKey: .specialDates) ?? []
-        relation = try c.decodeIfPresent(String.self, forKey: .relation)
+        // Decode as Relation enum; fall back to string matching for old data stored as plain strings
+        if let r = try? c.decodeIfPresent(Relation.self, forKey: .relation) {
+            relation = r
+        } else if let s = try? c.decodeIfPresent(String.self, forKey: .relation) {
+            relation = Relation.from(string: s)
+        } else {
+            relation = nil
+        }
     }
 
     var displayName: String {

@@ -19,19 +19,19 @@ struct ContactEditView: View {
     @State private var deceasedDate: Date
     @State private var showingDeceasedDatePicker = false
     @State private var specialDates: [SpecialDate]
-    @State private var relation: String
+    @State private var relation: Relation?
     @State private var relationQuery: String
     @FocusState private var relationFieldFocused: Bool
 
     init(contact: Contact, contactManager: ContactManager) {
         self.contact = contact
         self.contactManager = contactManager
-        
+
         // Parse the full name into first and last name
         let nameParts = contact.name.split(separator: " ", maxSplits: 1)
         let firstName = nameParts.count > 0 ? String(nameParts[0]) : ""
         let lastName = nameParts.count > 1 ? String(nameParts[1]) : ""
-        
+
         self._editedFirstName = State(initialValue: firstName)
         self._editedLastName = State(initialValue: lastName)
         self._editedPhoneNumber = State(initialValue: contact.phoneNumber ?? "")
@@ -39,8 +39,8 @@ struct ContactEditView: View {
         self._isDeceased = State(initialValue: contact.deceasedDate != nil)
         self._deceasedDate = State(initialValue: contact.deceasedDate ?? Date())
         self._specialDates = State(initialValue: contact.specialDates)
-        self._relation = State(initialValue: contact.relation ?? "")
-        self._relationQuery = State(initialValue: contact.relation ?? "")
+        self._relation = State(initialValue: contact.relation)
+        self._relationQuery = State(initialValue: contact.relation?.displayName ?? "")
         
         // Load existing photo data if available
         if let photoFileName = contact.photoFileName {
@@ -87,16 +87,18 @@ struct ContactEditView: View {
                     }
                 }
                 
-                let relationSuggestions = relationQuery.isEmpty ? [] : Contact.suggestedRelations.filter {
-                    $0.localizedCaseInsensitiveContains(relationQuery) &&
-                    $0.localizedCaseInsensitiveCompare(relationQuery) != .orderedSame
-                }
+                let relationMatches: [Relation] = relationQuery.isEmpty
+                    ? Relation.allCases.filter { $0 != .other }
+                    : Relation.allCases.filter { $0 != .other && $0.displayName.localizedCaseInsensitiveContains(relationQuery) }
+                let showOther = !relationQuery.isEmpty && relationMatches.isEmpty
 
                 Section("Relation") {
-                    TextField("e.g. Mother, Friend, Cousin…", text: $relationQuery)
+                    TextField("Search relation…", text: $relationQuery)
                         .focused($relationFieldFocused)
-                        .onChange(of: relationQuery) { _, newValue in
-                            relation = newValue
+                        .onChange(of: relationQuery) { _, _ in
+                            if Relation.from(string: relationQuery) == nil {
+                                relation = nil
+                            }
                         }
                         .submitLabel(.done)
                         .onSubmit { relationFieldFocused = false }
@@ -108,32 +110,41 @@ struct ContactEditView: View {
                             }
                         }
 
-                    if relationFieldFocused && !relationSuggestions.isEmpty {
-                        ForEach(relationSuggestions, id: \.self) { suggestion in
+                    if relationFieldFocused {
+                        ForEach(relationMatches, id: \.self) { r in
                             Button {
-                                relation = suggestion
-                                relationQuery = suggestion
+                                relation = r
+                                relationQuery = r.displayName
                                 relationFieldFocused = false
                             } label: {
                                 HStack {
-                                    Text(suggestion)
+                                    Text(r.displayName)
                                         .foregroundColor(.primary)
                                     Spacer()
                                     Image(systemName: "checkmark")
                                         .font(.caption)
                                         .foregroundColor(.blue)
-                                        .opacity(relation.localizedCaseInsensitiveCompare(suggestion) == .orderedSame ? 1 : 0)
+                                        .opacity(relation == r ? 1 : 0)
                                 }
                             }
                         }
-                    }
-
-                    if !relation.isEmpty && !Contact.suggestedRelations.contains(where: {
-                        $0.localizedCaseInsensitiveCompare(relation) == .orderedSame
-                    }) && !relationFieldFocused {
-                        Label("Custom: \"\(relation)\"", systemImage: "pencil")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        if showOther {
+                            Button {
+                                relation = .other
+                                relationQuery = Relation.other.displayName
+                                relationFieldFocused = false
+                            } label: {
+                                HStack {
+                                    Text(Relation.other.displayName)
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                        .opacity(relation == .other ? 1 : 0)
+                                }
+                            }
+                        }
                     }
                 }
                 .id("relationSection")
@@ -549,7 +560,7 @@ struct ContactEditView: View {
             phoneNumber: editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : editedPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines),
             deceasedDate: isDeceased ? deceasedDate : nil,
             specialDates: specialDates,
-            relation: relation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : relation.trimmingCharacters(in: .whitespacesAndNewlines)
+            relation: relation
         )
         
         // Save changes back to iOS Contacts
