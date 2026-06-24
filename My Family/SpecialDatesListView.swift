@@ -68,31 +68,26 @@ struct SpecialDateRow: View {
 
             // Info
             VStack(alignment: .leading, spacing: 4) {
-                Text(contact.name)
-                    .font(.headline)
-                    .foregroundColor(.primary)
                 HStack(spacing: 4) {
+                    Text(contact.name)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    if years > 0 {
+                        Text("• \(isToday ? years : nextYears)yr")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                HStack(spacing: 6) {
+                    Text(formattedDate(specialDate.date))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                     Text(specialDate.displayLabel)
                         .font(.caption)
                         .foregroundColor(.purple)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Capsule().fill(Color.purple.opacity(0.12)))
-                    Text("·")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(formattedDate(specialDate.date))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    if years > 0 {
-                        Text("·")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("\(isToday ? years : nextYears)yr")
-                            .font(.caption)
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                    }
                 }
             }
 
@@ -137,7 +132,7 @@ struct SpecialDateRow: View {
 
     private func formattedDate(_ date: Date) -> String {
         let f = DateFormatter()
-        f.dateFormat = "MMM d, yyyy"
+        f.dateFormat = "MMM d"
         return f.string(from: date)
     }
 }
