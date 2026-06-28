@@ -41,6 +41,9 @@ struct My_FamilyApp: App {
     private let notificationDelegate = NotificationDelegate()
     
     init() {
+        #if DEBUG
+        MockDataLoader.injectIfNeeded()
+        #endif
         setupNotifications()
     }
     
@@ -82,6 +85,10 @@ struct My_FamilyApp: App {
     }
 
     private func checkNotificationPermission() {
+        // SCREENSHOT MODE: skip notification modal
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["SCREENSHOT_MODE"] == "1" { return }
+        #endif
         // Only check notification permissions if notifications are enabled
         guard ContactManager.notificationsEnabled else { return }
         
