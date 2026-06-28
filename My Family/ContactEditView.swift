@@ -240,6 +240,19 @@ struct ContactEditView: View {
                             DatePicker("", selection: $sd.date, displayedComponents: .date)
                                 .datePickerStyle(WheelDatePickerStyle())
                                 .labelsHidden()
+                            HStack(spacing: 16) {
+                                Toggle(isOn: $sd.calendarReminderEnabled) {
+                                    Label("Calendar", systemImage: "calendar")
+                                        .font(.caption)
+                                }
+                                .toggleStyle(SwitchToggleStyle(tint: .green))
+                                Toggle(isOn: $sd.notificationsEnabled) {
+                                    Label("Reminder", systemImage: "bell")
+                                        .font(.caption)
+                                }
+                                .toggleStyle(SwitchToggleStyle(tint: .blue))
+                            }
+                            .font(.caption)
                         }
                         .padding(.vertical, 4)
                     }

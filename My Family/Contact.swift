@@ -6,6 +6,8 @@ struct SpecialDate: Identifiable, Codable, Equatable {
     var id = UUID()
     var date: Date
     var label: String = ""
+    var calendarReminderEnabled: Bool = true
+    var notificationsEnabled: Bool = true
 
     var daysUntilNext: Int {
         let calendar = Calendar.current

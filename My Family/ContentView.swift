@@ -258,17 +258,41 @@ struct ContentView: View {
         let dateCalendar = Calendar.current
         let currentYear = dateCalendar.component(.year, from: Date())
         for contact in contacts {
-            let title = "🎂 \(contact.name)'s Birthday"
-            let components = dateCalendar.dateComponents([.month, .day], from: contact.birthday)
-            guard let start = dateCalendar.date(from: DateComponents(year: currentYear, month: components.month, day: components.day)),
-                  let end = dateCalendar.date(from: DateComponents(year: currentYear + 1, month: components.month, day: components.day))
-            else { continue }
-            let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: [cal])
-            let matches = eventStore.events(matching: predicate).filter { $0.title == title && $0.isAllDay }
-            for event in matches {
-                try? eventStore.remove(event, span: .futureEvents)
+            // Remove birthday event
+            let birthdayTitle = "🎂 \(contact.name)'s Birthday"
+            let bComponents = dateCalendar.dateComponents([.month, .day], from: contact.birthday)
+            if let start = dateCalendar.date(from: DateComponents(year: currentYear, month: bComponents.month, day: bComponents.day)),
+               let end = dateCalendar.date(from: DateComponents(year: currentYear + 1, month: bComponents.month, day: bComponents.day)) {
+                let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: [cal])
+                for event in eventStore.events(matching: predicate) where event.title == birthdayTitle && event.isAllDay {
+                    try? eventStore.remove(event, span: .futureEvents)
+                }
+            }
+            // Remove special date events
+            for sd in contact.specialDates {
+                let sdTitle = "📅 \(sd.displayLabel) - \(contact.name)"
+                let sdComponents = dateCalendar.dateComponents([.month, .day], from: sd.date)
+                if let start = dateCalendar.date(from: DateComponents(year: currentYear, month: sdComponents.month, day: sdComponents.day)),
+                   let end = dateCalendar.date(from: DateComponents(year: currentYear + 1, month: sdComponents.month, day: sdComponents.day)) {
+                    let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: [cal])
+                    for event in eventStore.events(matching: predicate) where event.title == sdTitle && event.isAllDay {
+                        try? eventStore.remove(event, span: .futureEvents)
+                    }
+                }
             }
         }
+    }
+
+    private func specialDateEventExists(for sd: SpecialDate, contact: Contact, in eventStore: EKEventStore, calendar: EKCalendar) async -> Bool {
+        let dateCalendar = Calendar.current
+        let currentYear = dateCalendar.component(.year, from: Date())
+        let components = dateCalendar.dateComponents([.month, .day], from: sd.date)
+        guard let start = dateCalendar.date(from: DateComponents(year: currentYear, month: components.month, day: components.day)),
+              let end = dateCalendar.date(from: DateComponents(year: currentYear + 1, month: components.month, day: components.day))
+        else { return false }
+        let predicate = eventStore.predicateForEvents(withStart: start, end: end, calendars: [calendar])
+        let title = "📅 \(sd.displayLabel) - \(contact.name)"
+        return eventStore.events(matching: predicate).contains { $0.title == title && $0.isAllDay }
     }
 
     private var notificationModeBar: some View {
@@ -697,56 +721,59 @@ struct ContentView: View {
     }
     
     private func createEvents(for contacts: [Contact], using eventStore: EKEventStore) async {
-        // Get the default calendar
-        guard let calendar = eventStore.defaultCalendarForNewEvents else { return }
-        
+        guard let ekCalendar = eventStore.defaultCalendarForNewEvents else { return }
+        let dateCalendar = Calendar.current
+        let currentYear = dateCalendar.component(.year, from: Date())
+
         var createdCount = 0
         var skippedCount = 0
-        
+
         for contact in contacts {
-            // Check if a birthday event already exists for this contact
-            if await eventExists(for: contact, in: eventStore, calendar: calendar) {
+            // Birthday event
+            if await eventExists(for: contact, in: eventStore, calendar: ekCalendar) {
                 skippedCount += 1
-                continue
-            }
-                
+            } else {
                 let event = EKEvent(eventStore: eventStore)
-                event.calendar = calendar
+                event.calendar = ekCalendar
                 event.title = "🎂 \(contact.name)'s Birthday"
                 event.notes = "Birthday reminder for \(contact.name)"
                 event.isAllDay = true
-                
-                // Set the birthday date (month and day only, year doesn't matter for recurring events)
-                let calendar = Calendar.current
-                let birthdayComponents = calendar.dateComponents([.month, .day], from: contact.birthday)
-                let currentYear = calendar.component(.year, from: Date())
-                
-                // Create the event for this year
-                if let eventDate = calendar.date(from: DateComponents(year: currentYear, month: birthdayComponents.month, day: birthdayComponents.day)) {
+                let bComponents = dateCalendar.dateComponents([.month, .day], from: contact.birthday)
+                if let eventDate = dateCalendar.date(from: DateComponents(year: currentYear, month: bComponents.month, day: bComponents.day)) {
                     event.startDate = eventDate
-                    event.endDate = eventDate // For all-day events, start and end should be the same date
-                    
-                    // Make it recurring annually
-                    let recurrenceRule = EKRecurrenceRule(recurrenceWith: .yearly, interval: 1, end: nil)
-                    event.addRecurrenceRule(recurrenceRule)
-                    
-                    do {
-                        try eventStore.save(event, span: .futureEvents)
-                        createdCount += 1
-                    } catch {
-                        print("Failed to create calendar event for \(contact.name): \(error)")
+                    event.endDate = eventDate
+                    event.addRecurrenceRule(EKRecurrenceRule(recurrenceWith: .yearly, interval: 1, end: nil))
+                    if (try? eventStore.save(event, span: .futureEvents)) != nil { createdCount += 1 }
+                }
+            }
+
+            // Special date events
+            for sd in contact.specialDates where sd.calendarReminderEnabled {
+                if await specialDateEventExists(for: sd, contact: contact, in: eventStore, calendar: ekCalendar) {
+                    skippedCount += 1
+                } else {
+                    let event = EKEvent(eventStore: eventStore)
+                    event.calendar = ekCalendar
+                    event.title = "📅 \(sd.displayLabel) - \(contact.name)"
+                    event.isAllDay = true
+                    let sdComponents = dateCalendar.dateComponents([.month, .day], from: sd.date)
+                    if let eventDate = dateCalendar.date(from: DateComponents(year: currentYear, month: sdComponents.month, day: sdComponents.day)) {
+                        event.startDate = eventDate
+                        event.endDate = eventDate
+                        event.addRecurrenceRule(EKRecurrenceRule(recurrenceWith: .yearly, interval: 1, end: nil))
+                        if (try? eventStore.save(event, span: .futureEvents)) != nil { createdCount += 1 }
                     }
                 }
             }
-            
-            // Show results
-            if createdCount > 0 || skippedCount > 0 {
-                let message = createResultMessage(created: createdCount, skipped: skippedCount)
-                await MainActor.run {
-                    calendarSuccessMessage = message
-                    showingCalendarSuccessAlert = true
-                }
+        }
+
+        if createdCount > 0 || skippedCount > 0 {
+            let message = createResultMessage(created: createdCount, skipped: skippedCount)
+            await MainActor.run {
+                calendarSuccessMessage = message
+                showingCalendarSuccessAlert = true
             }
+        }
     }
     
     private func eventExists(for contact: Contact, in eventStore: EKEventStore, calendar: EKCalendar) async -> Bool {

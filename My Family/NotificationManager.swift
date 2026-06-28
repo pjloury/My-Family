@@ -66,20 +66,30 @@ class NotificationManager: ObservableObject {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
 
-        for contact in contacts where contact.notificationsEnabled {
-            let nextBirthday = getNextBirthday(for: contact.birthday, calendar: calendar, today: today)
-
-            for offset in offsets {
-                guard let fireDate = calendar.date(byAdding: .day, value: -offset, to: nextBirthday) else { continue }
-                let fireDayStart = calendar.startOfDay(for: fireDate)
-                if fireDayStart >= today {
-                    scheduleBirthdayNotification(for: contact, daysUntil: offset, on: fireDate, calendar: calendar)
+        for contact in contacts {
+            if contact.notificationsEnabled {
+                let nextBirthday = getNextBirthday(for: contact.birthday, calendar: calendar, today: today)
+                for offset in offsets {
+                    guard let fireDate = calendar.date(byAdding: .day, value: -offset, to: nextBirthday) else { continue }
+                    let fireDayStart = calendar.startOfDay(for: fireDate)
+                    if fireDayStart >= today {
+                        scheduleBirthdayNotification(for: contact, daysUntil: offset, on: fireDate, calendar: calendar)
+                    }
+                }
+                if let deceasedDate = contact.deceasedDate {
+                    scheduleDeathAnniversaryNotification(for: contact, deceasedDate: deceasedDate, calendar: calendar, today: today)
                 }
             }
 
-            // Schedule death anniversary notification if contact is deceased
-            if let deceasedDate = contact.deceasedDate {
-                scheduleDeathAnniversaryNotification(for: contact, deceasedDate: deceasedDate, calendar: calendar, today: today)
+            for sd in contact.specialDates where sd.notificationsEnabled {
+                let nextOccurrence = getNextOccurrence(of: sd.date, calendar: calendar, today: today)
+                for offset in offsets {
+                    guard let fireDate = calendar.date(byAdding: .day, value: -offset, to: nextOccurrence) else { continue }
+                    let fireDayStart = calendar.startOfDay(for: fireDate)
+                    if fireDayStart >= today {
+                        scheduleSpecialDateNotification(for: contact, specialDate: sd, daysUntil: offset, on: fireDate, calendar: calendar)
+                    }
+                }
             }
         }
     }
@@ -186,6 +196,65 @@ class NotificationManager: ObservableObject {
                 break
             }
         }
+    }
+
+    private func scheduleSpecialDateNotification(for contact: Contact, specialDate: SpecialDate, daysUntil: Int, on fireDate: Date, calendar: Calendar) {
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        let label = specialDate.displayLabel
+        let yearsElapsed = specialDate.yearsElapsed
+        let nextAnniversary = yearsElapsed + 1
+
+        switch daysUntil {
+        case 0:
+            content.title = "📅 \(label) Anniversary!"
+            let suffix = ordinalSuffix(nextAnniversary - 1)
+            content.body = "Today is \(contact.firstName)'s \(nextAnniversary - 1)\(suffix) \(label.lowercased()) anniversary!"
+        case 1:
+            content.title = "📅 \(label) Tomorrow"
+            content.body = "\(contact.firstName)'s \(label.lowercased()) anniversary is tomorrow!"
+        case 3:
+            content.title = "📅 \(label) in 3 Days"
+            content.body = "\(contact.firstName)'s \(label.lowercased()) anniversary is in 3 days!"
+        case 7:
+            content.title = "📅 \(label) Next Week"
+            content.body = "\(contact.firstName)'s \(label.lowercased()) anniversary is in 1 week!"
+        default:
+            content.title = "📅 \(label) Next Month"
+            content.body = "\(contact.firstName)'s \(label.lowercased()) anniversary is in about a month!"
+        }
+
+        content.sound = .default
+        content.categoryIdentifier = "BIRTHDAY_REMINDER"
+        content.threadIdentifier = "birthday_notifications"
+
+        var dateComponents = calendar.dateComponents([.year, .month, .day], from: fireDate)
+        dateComponents.hour = 9
+        dateComponents.minute = 0
+        dateComponents.second = 0
+
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "specialdate_\(contact.id.uuidString)_\(specialDate.id.uuidString)_\(daysUntil)days",
+            content: content,
+            trigger: trigger
+        )
+        center.add(request) { error in
+            if let error = error {
+                print("Error scheduling special date notification for \(contact.name): \(error)")
+            }
+        }
+    }
+
+    private func getNextOccurrence(of date: Date, calendar: Calendar, today: Date) -> Date {
+        let currentYear = calendar.component(.year, from: today)
+        let month = calendar.component(.month, from: date)
+        let day = calendar.component(.day, from: date)
+        var components = DateComponents(year: currentYear, month: month, day: day)
+        guard let thisYear = calendar.date(from: components) else { return date }
+        if thisYear >= today { return thisYear }
+        components.year = currentYear + 1
+        return calendar.date(from: components) ?? date
     }
 
     private func ordinalSuffix(_ n: Int) -> String {
